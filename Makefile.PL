@@ -4,6 +4,9 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
     'NAME'	=> 'Curses::Widgets',
-    'VERSION' => '1.0',
+	'AUTHOR' => 'Arthur Corliss <corliss@odinicfoundation.org>',
+	'ABSTRACT' => 
+	'High level access to widgets for rapid interface design.',
+    'VERSION' => '1.1',
 	'PREREQ_PM'	=> \%mods
 );

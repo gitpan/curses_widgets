@@ -2,7 +2,7 @@
 #
 # Simple script that demonstrates the uses of Curses::Widgets
 #
-# $Id: test.pl,v 1.0 2000/01/15 03:28:42 corliss Exp $
+# $Id: test.pl,v 1.1 2000/02/22 02:04:05 corliss Exp $
 #
 
 use strict;
@@ -67,6 +67,7 @@ $text = calendar( 'window'		=> $mwh,
 				  'border'		=> 'green',
 				  'xpos'		=> 10,
 				  'ypos'		=> 9,
+				  'events'		=> ["2/2/2000"],
 				  'function'	=> \&clock);
 
 $text = << "__EOF__";
@@ -257,7 +258,7 @@ dialog($text, 'green');
 grab_key($mwh, \&clock);
 
 ($content, $text) = input_box( 'title'	=> "Test Input",
-							   'prompt'	=> "Input Password:",
+							   'prompt'	=> "Input Text:",
 							   'border'	=> "blue",
 							   'function' => \&clock);
 
@@ -285,7 +286,12 @@ grab_key($mwh, \&clock);
 
 $mwh->refresh();
 
-endwin();
+END {
+	# The END block just ensures that Curses always cleans up behind
+	# itself
+	endwin();
+}
+
 exit 0;
 
 #####################################################################

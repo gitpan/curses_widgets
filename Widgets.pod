@@ -4,7 +4,7 @@ Curses::Widgets -- Curses-based widgets and functions
 
 =head1 Doc/Module Version info
 
-$Id: Widgets.pod,v 1.0 2000/01/15 03:26:54 corliss Exp $
+$Id: Widgets.pod,v 1.1 2000/02/22 02:05:56 corliss Exp $
 
 =head1 SYNOPSIS
 
@@ -41,10 +41,17 @@ Extra functions include:
 	select_colour
 	line_split
 	grab_key
+	init_scr
 
 Note that all of the widgets strictly use named parameters, while the
 functions use unamed arguments.  All of them either return values, or modify
 references that were passed as arguments.
+
+Also note, for purpose of screen geometry, that all values passed for
+specifying 'cols' and 'lines' refers only to the dimensions of the actual
+content area, and does not include the border decorations.  You will typically
+need to plan for an additional 2 for both 'cols' and 'lines' to account for
+these.
 
 =head1 EXPORTED
 
@@ -52,16 +59,16 @@ references that were passed as arguments.
 
 =over 4
 
-=item * 
+=item *
 txt_field
 
-=item * 
+=item *
 buttons
 
-=item * 
+=item *
 list_box
 
-=item * 
+=item *
 calendar
 
 =item *
@@ -72,6 +79,9 @@ input_box
 
 =item *
 select_colour
+
+=item *
+init_scr
 
 =back
 
@@ -94,11 +104,14 @@ grab_key
 The text field widget creates a derived window (which uses coordinates
 relative to the passed window) with a border surrounding the text.  When used
 interactively, it handles its own input, passing back only the keys it
-doesn't know how to handle, as well as the final content string.
+doesn't know how to handle, as well as the final content string and cursor
+position.
 
-The widget provides an arrow superimposed on the border to indicate whether
-there is content that can be scrolled to in that direction.  The arrow only
-appears when the content exceeds the display area.
+If border decorations are enabled (they are, by default), the widget provides 
+an arrow superimposed on the border to indicate whether there is content that 
+can be scrolled to in that direction.  The arrow only appears when the content 
+exceeds the display area.  The field is underlined if border decorations are
+turned off.
 
 Currently, this widget will handle any normal characters to be inserted into
 the content string, and the following keys:
@@ -130,10 +143,18 @@ All parameters are passed as named parameters:
 			default is $COLS - 2
 	content		string, optional,
 			default is "\n"
+	password	integer, optional
+			default is 0
 	pos		integer, optional
 			default is 0
-	border		named colour, optional
+	border		string, optional
 			default is 'red'
+	decorations	integer, optional
+			default is 1
+	edit		integer, optional
+			default is 1
+	hz_scroll	integer, optional
+			default is 0
 	function	reference, optional
 	draw_only	integer, optional
 			default is 0
@@ -149,10 +170,33 @@ portion of the window to extend passed the boundaries of the parent window,
 the module will print an error message to STDERR, and immediately exit the
 routine--no attempt will be made to draw or activate the widget.
 
+'border' is the English name of the common console colours.  See the
+'select_colour' function for a list of available colours.
+
+'content' is a string containing the text you wish to fill the field with.
+
+'password' will cause all text to show up as asterixs when printed.  This is
+obviously intended for input that needs visual feedback, while maintaining
+content security.
+
 'pos' refers to the cursor position for use in interactive mode, so that input
 can be inserted or appended to the content string.  This is ignored if passed
 in conjunction with the draw_only parameter.  Valid settings are 0 -
 length($string), or -1 to place the cursor at the end of the string.
+
+'decorations' enables or disables the border/title/arrow decorations on the
+field.  When disabled, the field will be underlined, to give some visual
+indication of the size of the field.
+
+'edit' turns on or off editing capabilities in the widget.  The field is still
+navigable with all special keys, but no cursor will be printed, and the
+content will not be affected by typed input.
+
+'hz_scroll' enables horizontal scrolling in the text field, instead of the
+normal behaviour of splitting on white space and presenting a new line.  This
+will only work with one line widgets.  If you call this widget with any value
+of 'lines' greater than one, horizontal scrolling will automatically be
+disabled.
 
 'function' is a scalar reference to a subroutine that can be called by the
 widget when it times out, waiting for input.  For this to work, it assumes a
@@ -187,7 +231,7 @@ The memory allocated for the window is released when the widget routine exits.
 	
 	B<(Interactive)>
 
-	($key, $rtrnd_note) = txt_field( 'window'	=> $window,
+	($key, $rtrnd_note, $pos) = txt_field( 'window'	=> $window,
 					 'ypos'		=> 2,
 					 'xpos'		=> $COLS - 5,
 					 'lines'	=> $LINES - 10,
@@ -208,6 +252,8 @@ as the currently selected item.
 	-------------------------------
 	up arrow	KEY_UP
 	down arrow	KEY_DOWN
+	page up		KEY_PPAGE
+	page down	KEY_PPAGE
 
 The widget provides an arrow superimposed on the border to indicate whether
 there is content that can be scrolled to in that direction.  The arrow only
@@ -227,11 +273,11 @@ All parameters are passed as named parameters:
 			default is 1
 	cols		integer, optional,
 			default is $COLS - 2
-	list		reference, optional
-	border		named colour, optional
+	list		hash or array reference
+	border		string, optional
 			default is 'red'
 	selected	integer, optional,
-			default is 1
+			default is first element
 	function	reference, optional
 	draw_only	integer, optional
 			default is 0
@@ -239,10 +285,13 @@ All parameters are passed as named parameters:
 
 All previously described parameters maintain their same use and warnings.
 
-'list' is a hash reference, and a numeric sort is done on the keys, while the
-associated values are what are actually displayed.  The keys B<must> be a
-sequential sequence of numbers.  It doesn't care what number you start with,
-but it must be sequential.
+'list' can be either a hash reference or an array reference.  If a hash is
+passed, the value will be displayed, but the key will be returned as the
+selected entry.  The list will also be numerically sorted according to key
+value when displayed.
+
+If 'list' is an array reference, the list will be displayed in array order,
+and the index number of the element will be returned as the selected value.
 
 	B<Example (non-Interactive)>
 
@@ -262,7 +311,7 @@ but it must be sequential.
 					'xpos'		=> 5,
 					'lines'		=> 10,
 					'cols'		=> 25,
-					'list'		=> \%list,
+					'list'		=> \@list,
 					'border'	=> 'green',
 					'selected'	=> $last,
 					'function'	=> \&clock);
@@ -357,11 +406,16 @@ All parameters are passed as named parameters:
 	xpos		integer, optional,
 			default is 1
 	date_disp	reference
-	border		named colour, optional
+	border		string, optional
 			default is 'red'
 	function	reference, optional
 	draw_only	integer, optional
 			default is 0
+	t_colour	string, optional
+			default is 'yellow'
+	e_colour	string, optional
+			default is 'red'
+	events		reference
 
 'date_disp' is an array reference that holds the desired date to display (in
 day, month, year format).  If date_disp is not passed (or an empty list
@@ -370,6 +424,12 @@ Should the widget be called in interactive mode, the reference will be
 modified to display the last date navigated to by the user.  The first 
 element, [0], is the day, the second, [1], the month, and the third, [2], 
 the year.
+
+'t_colour' highlights the current date in the desired colour.  If colour is
+not available, then the current date will be displayed in bold.  'e_colour'
+will highlight each date found in the 'events' array ref in the desired
+colour.  Date formats for the 'event' array must be 'dd/mm/yyyy', with no
+leading zeros.
 
 	B<Example (non-Interactive)>
 
@@ -396,6 +456,7 @@ console and the passed message.
 	title		string, optional
 	message		string, optional
 	border		string, optional
+			defaults to 'blue'
 	function	reference, optional
 	mode		integer, optional
 
@@ -438,11 +499,21 @@ in the text field is a shortcut for pressing the B<OK> button.
 	title		string, optional
 	prompt		string, optional
 	border		string, optional
+			defaults to 'blue'
+	f_colour	string, optional
+			defaults to 'yellow'
+	c_limit		defaults to 255
 	function	reference, optional
+
+'f_colour' is the colour to use for the text field border when it has the
+focus.  It will use the same colour set in 'border'
 
 This widget requires a minimum console size for this to work, which is 8 rows
 by 24 columns.  Both the title and the prompt may be chomped to accomodate
 available screen space.
+
+'c_limit' is simply passed to the text widget to restrict the length of the
+typed string.  Horizontal scrolling is enabled.
 
 	B<Example>
 
@@ -475,6 +546,24 @@ attributes are reset via B<attrset(0)>.
 
 	select_colour($main, 'yellow');
 
+=head2 init_scr
+
+Usage: B<init_scr($miny, $minx)>
+
+This function tests the terminal for both minimum dimensions and
+interactivity.  If either condition is detected to be unsatisfactory, it
+produces a warning on STDERR, and returns a false condition.  If it tests
+okay, however, it will return a handle to a new Curses object.  It will also
+set the default keypad, halfdelay, noecho, and cbreak options.
+
+The miny and minx, minimum lines and columns, respectively, are optional.  If
+omitted, the standard console size of 25 lines by 80 columns will be checked
+for.
+
+	B<Example>
+
+	$mwh = init_scr(40, 80);
+
 =head2 line_split (not exported by default)
 
 Usage:  B<line_split(string, line_length)>
@@ -504,12 +593,19 @@ every half a second:
 
 =head1 Troubleshooting
 
+Curses::Widgets will never intentionally kill your script.  It does do some
+basic checks before executing some routines, and if it finds something amiss,
+it will use the B<warn> function to report the error.
+
 When testing scripts that use this module, you'd be well advised to pipe
 STDERR to a file, so that it doesn't mess with the current display.  Checking
 that file later will show you what specific areas of the script have problems.
-Otherwise, the display might become corrupted, and cause perfected valid
+Otherwise, the display might become corrupted, and cause perfectly valid
 function calls to B<appear> screwey, when it was only the fact that the STDERR
 moved the cursor location before the next STDOUT output could be rendered.
+
+You should also consider overloading the __DIE__ signal handler, to make sure
+that Curses returns your terminal to a usable state in case of fatal errors.
 
 If you run into problems that appear to be the fault of the module, please
 send me the STDERR output and a script that demonstrates the problem.
@@ -520,21 +616,24 @@ See the Changelog for in depth change history.  So far, I haven't broken
 any of the default exported functions, so most scripts should run
 unmodified.
 
-Significant changes:
-
-B<msg_box> now has two button modes.
-
-B<Unix cal> no longer needed.  Cal output is now generated internally, using
-modified code provided courtesy of Michael E. Schechter, 
-<mschechter@earthlink.net>.
-
-B<export tags> defined.  By default, :standard is the set imported, but now
-:functions and :all are now allowed as well.
-
-B<init_colours> deprecated in favour of automatic allocation of color pairs by
-the select_colour function.  While the memory savings are minor, colour pairs
-are only allocated as used, and done automatically, so no pre-allocation is
-necessary.
+2000/02/21 -- v1.1 Improved error handling/reporting, misc bug fixes, and
+		major feature additions to the input_box, txt_field, list_box,
+		and calendar.  Added init_scr function
+2000/01/15 -- v1.0 Version promotion for first stable release
+2000/01/15 -- v0.10 Degugging, added input_box, msg_box widgets
+1999/11/17 -- v0.9 Internal calendar generation, improved error handling/
+		reporting, added spacing argument to button bar, removed
+		init_colours function
+1999/06/17 -- v0.8 Added line_split function, title options, minor rewrites
+1999/04/14 -- v0.7 Added l_limit/c_limit to text field
+1999/02/02 -- v0.6 Colour-capability detection added, up/down charactersadded
+		for content out-of-view indication, additional debugging
+1999/01/11 -- v0.5 Debugging
+1999/01/10 -- v0.4 Special key support added, special character constants 
+		used, new select_colour function
+1999/01/03 -- v0.3 rewrite/optimisation
+1998/12/30 -- v0.2 rewrite/optimisation
+1998/12/29 -- v0.1 Initial release (text field, list box, buttons, calendar)
 
 =head1 AUTHOR
 

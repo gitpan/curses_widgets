@@ -1,4 +1,30 @@
 ----------------------------
+revision 1.1
+date: 2000/02/22 02:04:33;  author: corliss;  state: Exp;  lines: +366 -176
+--input_box modifications:
+	--'f_colour':  active colour for the text field
+	--'c_limit':  character limit for input
+	--'content':  default content can now be specified
+	--'password':  enables/disables password mode for field input
+	--Text field now supports horizontal scrolling
+--txt_field modifications:
+	--'hz_scroll':  enables/disables horizontal scrolling
+	--'edit':  enables/disables editing capability of field contents
+	--'decorations':  enables/disables border decorations
+	--'password':  enables/disables password mode for field input
+--list_box modifications:
+	--Can now accept either a hash or an array reference for 'list'
+	--PgUp/PgDn keys now work
+--calendar modifications:
+	--'t_colour':  controls current date's colour highlighting
+	--'e_colour':  controls event dates' colour highlighting
+	--'events':  array of event dates to highlight in the calendar
+--Added init_scr function that tests the terminal both for interactivity
+  and minimum dimensions, and returns a handle to a new Curses object.
+--Improved warning diagnostic messages
+--Fixed some of the boundary checking problems
+--Fixed unusual circumstance bug in the line_split function
+----------------------------
 revision 1.0
 date: 2000/01/15 03:25:59;  author: corliss;  state: Exp;  lines: +1 -1
 --Stable release, moving up to 1.0
