@@ -1,6 +1,15 @@
+----------------------------
+revision 1.0
+date: 2000/01/15 03:25:59;  author: corliss;  state: Exp;  lines: +1 -1
+--Stable release, moving up to 1.0
+----------------------------
+revision 0.10
+date: 2000/01/15 03:22:52;  author: corliss;  state: Exp;  lines: +230 -32
+--Fixed a nasty bug on the calendar widget.
+--Added button mode choice on msg_box.
 --Added input_box and msg_box widgets.
 ----------------------------
-revision 0.9	locked by: corliss;
+revision 0.9
 date: 1999/11/17 02:36:53;  author: corliss;  state: Exp;  lines: +563 -373
 --Generating 'cal' output internally, so the Unix cal is no longer needed.
 --Added export tags of :standard, :all, and :functions.

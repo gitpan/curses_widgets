@@ -11,3 +11,4 @@ Michael E. Schechter--contributed code for internal generation of the
   Unix 'cal' command.
 Anthony Rumble--contributed code and idea for the input_box and msg_box 
   widgets.
+Joerg Binder--contributed code and improvements on the input_box.

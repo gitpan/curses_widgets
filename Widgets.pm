@@ -2,7 +2,7 @@
 #
 # Curses Widget Module
 #
-# $Id: Widgets.pm,v 0.9 1999/11/17 02:36:53 corliss Exp corliss $
+# $Id: Widgets.pm,v 1.0 2000/01/15 03:25:59 corliss Exp $
 #
 # (c) Arthur Corliss, 1998
 #
@@ -18,7 +18,7 @@ use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
 use Exporter;
 use Curses;
 
-$VERSION = '0.09';
+$VERSION = '1.00';
 
 @ISA = qw(Exporter);
 
@@ -713,7 +713,7 @@ sub get_cal {
 	# Modified from code provided courtesy of Michael E. Schechter,
 	# <mschechter@earthlink.net>
 	#
-	# Usage:  get_cal(@date_disp);
+	# Usage:  @output = get_cal(@date_disp);
 
 	my @date = @_;
 	my @cal;
@@ -848,7 +848,7 @@ sub calendar {
 	# Check to make sure the calendar won't exceed the window boundaries
 	$args{'window'}->getmaxyx($y2, $x2);
 	if ($args{'ypos'} < 0 || $args{'xpos'} < 0 ||
-		($args{'ypos'} + 24) > $y2 || ($args{'xpos'} + 10) > $x2) {
+		($args{'ypos'} + 10) > $y2 || ($args{'xpos'} + 24) > $x2) {
 		warn "Calendar widget's boundaries exceed the parent " .
 			"window's--not drawing.\n";
 		return;
@@ -951,14 +951,15 @@ sub msg_box {
 	# Draws an message box with a single OK button on it.  The window is
 	# auto resizing, and auto-centering.  Once the OK button is activated, 
 	# it will destroy it's window before touching and refreshing the 
-	# calling window.
+	# calling window.  The message box can optionally be created with an
+	# OK and CANCEL button, if desired.
 	#
 	# Usage:  msg_box( [ 'title' => $title], etc. );
 
-	my %args = ( 'message' => '!', @_ );
+	my %args = ( 'message' => '!', 'mode' => 1, @_ );
 
 	my ($x1, $y1, $x2, $cols, $rows);
-	my (@line, $mbwh, $max, $ok);
+	my (@line, $mbwh, $max, $ok, @buttons);
 
 	# Get the console geometry and start plotting the msg_box dimensions
 	$cols = $COLS - 4;
@@ -966,7 +967,9 @@ sub msg_box {
 
 	# Set the absolute minimum of any msg_box, and exit now if there's 
 	# not enough room.
-	if ($rows < 1 || $cols < 10) {
+	$max = 10;
+	$max = 20 if ($args{'mode'} == 2);
+	if ($rows < 1 || $cols < $max) {
 		warn "Not enough room for the message box--not showing.\n";
 		return;
 	}
@@ -980,6 +983,7 @@ sub msg_box {
 	@line = @line[0..$rows] if (scalar @line > $rows);
 	$max = 0;
 	foreach (@line) { $max = length($_) if (length($_) > $max) };
+	$max = 20 if ($args{'mode'} == 2 && $max < 20);
 	$x1 = int(($cols - $max) / 2);
 	$y1 = int(($rows - scalar @line) / 2);
 	$x1 = 0 if ($x1 < 0);
@@ -1005,21 +1009,31 @@ sub msg_box {
 	}
 	$mbwh->refresh();
 
-	$x1 = int(($max - 6) / 2);
-	$ok = '';
-	while ($ok !~ /[\n Oo]/) {
-		($ok, $x2) = buttons( 'window'	=> $mbwh,
-							  'buttons'	=> [ "< Ok >" ],
-							  'ypos'	=> $y1,
-							  'xpos'	=> $x1,
-							  'function'=> $args{'function'});
+	# Display the proper button set
+	@buttons = ( "< Ok >" );
+	push(@buttons, "< Cancel >") if ($args{'mode'} == 2);
+
+	if ($args{'mode'} == 2) {
+		$x1 = int(($max - 18) / 2) + 1;
+	} else {
+		$x1 = int(($max - 6) / 2);
 	}
+	$ok = '';
+	$x2 = 0;
+	while ($ok !~ /[\n ]/) {
+		($ok, $x2) = buttons( 'window'		=> $mbwh,
+							  'buttons'		=> \@buttons,
+							  'ypos'		=> $y1,
+							  'xpos'		=> $x1,
+							  'active_button' => $x2,
+							  'function'	=> $args{'function'});
+	}
+	++$x2;
+	$x2 = 0 if ($x2 == 2);
 
 	$mbwh->delwin;
-	if (exists $args{'window'}) {
-		$args{'window'}->touchwin;
-		$args{'window'}->refresh;
-	}
+
+	return ($x2);
 }
 
 sub input_box {
@@ -1085,12 +1099,12 @@ sub input_box {
 	$x1 = int(($max - 18) / 2) + 1;
 	$x2 = 0;
 	$ok = "\t";
+	$in = '';
 	while ($ok eq "\t") {
 		buttons( 'window'	=> $ibwh,
 				 'buttons'	=> [ "< Ok >", "< Cancel >" ],
 				 'ypos'	=> $y1 + 3,
 				 'xpos'	=> $x1,
-				 'active_button' => $x2,
 				 'draw_only' => 1);
 		($key, $in) = txt_field( 'window'	=> $ibwh,
 								 'ypos'		=> $y1,
@@ -1100,6 +1114,8 @@ sub input_box {
 								 'function' => $args{'function'},
 								 'l_limit'	=> 1,
 								 'c_limit'	=> $max - 2,
+								 'content'	=> $in,
+								 'pos'		=> length($in) + 1,
 								 'regex'	=> "\t\n");
 		txt_field( 'window'		=> $ibwh,
 				   'ypos'		=> $y1,
@@ -1127,10 +1143,6 @@ sub input_box {
 	}
 
 	$ibwh->delwin;
-	if (exists $args{'window'}) {
-		$args{'window'}->touchwin;
-		$args{'window'}->refresh;
-	}
 
 	return ($in, $x2);
 }

@@ -2,7 +2,7 @@
 #
 # Simple script that demonstrates the uses of Curses::Widgets
 #
-# $Id: test.pl,v 0.1 1999/06/17 23:06:15 corliss Exp corliss $
+# $Id: test.pl,v 1.0 2000/01/15 03:28:42 corliss Exp $
 #
 
 use strict;
@@ -181,6 +181,7 @@ will be returned, along with a selected item number,
 if there is one.
 __EOF__
 
+main_win();
 dialog($text, 'red');
 
 %list = ( '1'	=> 'Item 1',
@@ -223,7 +224,6 @@ selected was $list{$sel}.
 Press any key to continue.
 __EOF__
 
-main_win();
 dialog($text, 'green');
 grab_key($mwh, \&clock);
 
@@ -235,11 +235,11 @@ This widget is for pop-up alerts, prebuilt with an
 Press a key to see it.
 __EOF__
 
+main_win();
 dialog($text, 'green');
 grab_key($mwh, \&clock);
 
-msg_box( 'window'	=> $mwh,
-		 'message'	=> "And this is the Message Box!",
+msg_box( 'message'	=> "And this is the Message Box!",
 		 'title'	=> "Test msg_box",
 		 'border'	=> "blue",
 		 'function'	=> \&clock);
@@ -252,11 +252,11 @@ input requests.
 Press a key to see it.
 __EOF__
 
+main_win();
 dialog($text, 'green');
 grab_key($mwh, \&clock);
 
-($content, $text) = input_box( 'window'	=> $mwh,
-							   'title'	=> "Test Input",
+($content, $text) = input_box( 'title'	=> "Test Input",
 							   'prompt'	=> "Input Password:",
 							   'border'	=> "blue",
 							   'function' => \&clock);
@@ -279,6 +279,7 @@ Any comments, grips, suggestions and critiques are welcome.
 Send them to Arthur Corliss <corliss@odinicfoundation.org>.
 __EOF__
 
+main_win();
 dialog($text, 'green');
 grab_key($mwh, \&clock);
 

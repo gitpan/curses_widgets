@@ -4,7 +4,7 @@ Curses::Widgets -- Curses-based widgets and functions
 
 =head1 Doc/Module Version info
 
-$Id: Widgets.pod,v 0.9 1999/11/17 02:40:02 corliss Exp corliss $
+$Id: Widgets.pod,v 1.0 2000/01/15 03:26:54 corliss Exp $
 
 =head1 SYNOPSIS
 
@@ -65,12 +65,12 @@ list_box
 calendar
 
 =item *
-msb_box
+msg_box
 
 =item *
 input_box
 
-=item * 
+=item *
 select_colour
 
 =back
@@ -79,8 +79,7 @@ select_colour
 
 =over 4
 
-=item * 
-
+=item *
 line_split
 
 =item *
@@ -390,27 +389,25 @@ the year.
 
 The msg_box displays the passed message in a new window that erases once
 acknowledged.  It automatically scales and centers itself according to the
-console and the passed message.  The 'window' argument is optional, but if
-passed, it will do a touchwin() and refresh() on it before exiting, restoring
-whatever content that window had that was obscured by the msb_box.
+console and the passed message.
 
 	Parameter	Commments
 	-----------------------------------
-	window		object handle to calling
-			window for the widget,
-			optional
 	title		string, optional
 	message		string, optional
 	border		string, optional
 	function	reference, optional
+	mode		integer, optional
 
 All previously described options remain the same.  It only responds to the 
-ENTER key, space, O, or o.
+ENTER or space key.  Mode refers to the buttons drawn with the message.  By
+default, it only draws an OK button, but if set to 2, it will display both an
+OK and a CANCEL button.  In that instance, the widget will return a 1 if OK
+was selected, or a 0 if CANCEL was selected.
 
 	B<Example>
 
-	msg_box( 'window'	=> $mwh,
-		 'title'	=> "Critical Error!",
+	msg_box( 'title'	=> "Critical Error!",
 		 'message'	=> "Now, you've done it!",
 		 'border'	=> "red");
 
@@ -420,12 +417,16 @@ the message box will render.  Also note, though, that both the message and the
 title may get chomped down to alloted window space, if you pass it more than
 it can display.
 
+Further, if the function parameter is used, and the passed function updates
+the screen, you may see the message box disappear, though it is still trapping
+key strokes.  To avoid this behaviour, refresh the current screen before
+calling this function.
+
 =head2 input_box
 
 The input_box displays a dialog box with a prompt, a one-line input field, 
 and a two buttons, B<OK> and B<CANCEL>.  Like the msg_box, this widget
-automatically scales and centers itself according to the prompt, and the
-'window' argument is optional.
+automatically scales and centers itself according to the prompt.
 
 Unlike the msg_box, however, this widget returns two values; the first being
 the value of the text field, the second being a 1 if the B<OK> button was
@@ -434,9 +435,6 @@ in the text field is a shortcut for pressing the B<OK> button.
 
 	Parameter	Commments
 	-----------------------------------
-	window		object handle to calling
-			window for the widget,
-			optional
 	title		string, optional
 	prompt		string, optional
 	border		string, optional
@@ -448,10 +446,14 @@ available screen space.
 
 	B<Example>
 
-	($field, $button) = input_box( 'window'		=> $mwh,
-				       'title'		=> 'Password',
+	($field, $button) = input_box( 'title'		=> 'Password',
 				       'prompt'		=> 'Enter Password:',
 				       'border'		=> 'blue');
+
+If the function parameter is used, and the passed function updates
+the screen, you may see the message box disappear, though it is still trapping
+key strokes.  To avoid this behaviour, refresh the current screen before
+calling this function.
 
 =head1 FUNCTIONS
 
@@ -500,6 +502,18 @@ every half a second:
 
 	halfdelay(5);
 
+=head1 Troubleshooting
+
+When testing scripts that use this module, you'd be well advised to pipe
+STDERR to a file, so that it doesn't mess with the current display.  Checking
+that file later will show you what specific areas of the script have problems.
+Otherwise, the display might become corrupted, and cause perfected valid
+function calls to B<appear> screwey, when it was only the fact that the STDERR
+moved the cursor location before the next STDOUT output could be rendered.
+
+If you run into problems that appear to be the fault of the module, please
+send me the STDERR output and a script that demonstrates the problem.
+
 =head1 HISTORY
 
 See the Changelog for in depth change history.  So far, I haven't broken
@@ -507,6 +521,8 @@ any of the default exported functions, so most scripts should run
 unmodified.
 
 Significant changes:
+
+B<msg_box> now has two button modes.
 
 B<Unix cal> no longer needed.  Cal output is now generated internally, using
 modified code provided courtesy of Michael E. Schechter, 
