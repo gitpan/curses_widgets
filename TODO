@@ -1,3 +1,2 @@
 --Add day list highlighting/colour support for the calendar widget
---Add support for Tabs in the text field
---Add return newlines, instead of trapping them.
+--Add proper cursor support for Tabs in the text field

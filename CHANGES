@@ -1,14 +1,14 @@
 
 RCS file: RCS/Widgets.pm,v
 Working file: Widgets.pm
-head: 0.6
+head: 0.8
 branch:
 locks: strict
-	corliss: 0.6
+	corliss: 0.8
 access list:
 symbolic names:
 keyword substitution: kv
-total revisions: 6;	selected revisions: 6
+total revisions: 8;	selected revisions: 8
 description:
 Provides higher level access to self-contained widgets, all
 rendered with Curses.  Requires the Curses module.
@@ -26,7 +26,24 @@ Currently provides:
 	  line length and new lines.  Can also return a hash denoting #
 	  of characters by line, and an array of each line's content.
 ----------------------------
-revision 0.6	locked by: corliss;
+revision 0.8	locked by: corliss;
+date: 1999/06/17 23:39:01;  author: corliss;  state: Exp;  lines: +246 -214
+--Changed the name and rewrote line_split function.
+--Rewrote txt_field to work with line_split.
+--Added title options to the list_box and txt_field functions.
+--Fixed bug in vertical button bars that disallowed selected the first
+  element.
+--Added all seven colour on black pairs to the init_colours and
+  select_colours functions (blue, cyan, magenta, green, red, white,
+  and yellow).
+--Minor code tweaks.
+----------------------------
+revision 0.7
+date: 1999/04/14 05:23:36;  author: corliss;  state: Exp;  lines: +25 -15
+--Added l_limit and c_limit (line and character limit, respectively)
+  to text fields.
+----------------------------
+revision 0.6
 date: 1999/02/02 17:18:45;  author: corliss;  state: Exp;  lines: +166 -53
 --Fixed the small problem of the text fields not liking 0s. (Whoops!)
   Never put the the getch sequence as the test for the while loop. :-P

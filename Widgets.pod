@@ -4,7 +4,7 @@ Curses::Widgets -- Curses-based widgets and functions
 
 =head1 Doc/Module Version info
 
-$Id: Widgets.pod,v 0.6 1999/02/02 17:23:50 corliss Exp corliss $
+$Id: Widgets.pod,v 0.8 1999/06/17 23:55:36 corliss Exp corliss $
 
 =head1 REQUIREMENTS
 
@@ -97,11 +97,6 @@ the content string, and the following keys:
 	home		KEY_HOME
 	end		KEY_END
 
-I hope these keys act as one would expect.  In addition, the enter key
-(trapped as "\n") ends the line, and places the cursor on the next line.  The
-tab key (trapped as "\t") causes the widget to return control back to the
-calling routine, as does any other key not explicitly handled.
-
 All parameters are passed as named parameters:
 
 	Parameter	Commments
@@ -124,6 +119,11 @@ All parameters are passed as named parameters:
 	function	reference, optional
 	draw_only	integer, optional
 			default is 0
+	l_limit		integer, optional
+	c_limit		integer, optional
+	title		string, optional
+	regex		string, optional,
+			default is "\t"
 
 'window' is a scalar reference to a predefined window or subwindow.  A quick
 tip for debugging:  if either 'xpos', 'ypos', 'lines', or 'cols' cause any
@@ -139,6 +139,20 @@ evaluates to a true value, as per Perl.
 'function' is a scalar reference to a subroutine that can be called by the
 widget when it times out, waiting for input.  For this to work, it assumes a
 halfdelay(10) has been called, or on some other interval.
+
+'l_limit' and 'c_limit' are completely optional, and can be used
+together, if desired.  Both are integers, and can limit the content in
+the text field.  Which ever limit is hit first will be honoured.
+
+'title' is an optional string that will be superimposed over the
+top-left border in reverse video.
+
+'regex' is a string of all the characters that you wish to use to shift
+focus off the text field, and return the contents.  By default, the tab
+character is used ("\t").  This string is interpolated inside of
+character class brackets, so don't include regex specific punctuation.
+If you wish both new lines and tabs to shift focus, you would use
+"\t\n".
 
 The memory allocated for the window is released when the widget routine exits.
 
@@ -202,6 +216,7 @@ All parameters are passed as named parameters:
 	function	reference, optional
 	draw_only	integer, optional
 			default is 0
+	title		string, optional
 
 All previously described parameters maintain their same use and warnings.
 
@@ -357,10 +372,13 @@ Currently, the colour pairs declared are:
 
 	Pair #		Foreground, Background
 	--------------------------------------
-	   1		Red, Black
-	   2		Green, Black
-	   3		Blue, Black
-	   4		Yellow (using A_BOLD), Black
+	   1		Blue, Black
+	   2		Cyan, Black
+	   3		Magenta, Black
+	   4		Green, Black
+	   5		Red, Black
+	   6		White, Black
+	   7		Yellow (using A_BOLD), Black
 
 	B<Example>
 
@@ -383,29 +401,33 @@ reset via B<attrset(0)>.
 
 	select_colour(\$main, 'yellow');
 
-=head2 line_count
+=head2 line_split (not exported by default)
 
-Usage:  B<line_count(string, line_length [, cur_pos] [, \@lines]>
-			B<[, \%ch_x_ln])>
+Usage:  B<line_split(string, line_length)>
 
-This function returns first the number of lines in the string, and secondly,
-the line that the cursor is one, if the cursor position was passed.  The
-number of lines are determined by accounting for new line characters and the
-length limit of the lines, as passed in the second argument.
-
-In addition, if passed, the function can modify an array and/or a hash.  In
-the array would be passed the text of each line.  In the hash would be passed
-the number of characters in each line, the key being the line number.
+This function returns the submitted string as a list, each element being
+a separate line.  It accounts for not only column limits, but whitespace
+as well, splitting a sentence by whitespace, so as to not break words.
 
 	B<Example>
 
-	($n_lines, $c_line) = line_count($note, 80, 73, \@lines, \%chxln);
+	@lines = line_split($note, 80);
 
 =head1 HISTORY
 
-This is the second developer's release.  No show stopper bugs, everything now
-works as advertised, but more functionality could be added.  And will be,
-don't worry.  :-)
+See the Changelog for in depth change history.  So far, I haven't broken
+any of the default exported functions, so most scripts should run
+unmodified.
+
+Significant changes:
+
+B<line_count> deprecated in favour of B<line_split>.  The function does
+less, but runs much more quickly, and now splits text according to white
+space, as well as column limits.
+
+B<txt_field> functionality expanded, as well as performance
+improvements, especially with longer text.
+
 
 =head1 AUTHOR
 

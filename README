@@ -2,24 +2,32 @@ Curses::Widgets Module for Perl
 ==============================
 
 Author: Arthur Corliss
-Date:  January 12, 1999
+Date:  June 17, 1999
 
 Description:
 ------------
 
 High level access to basic Curses widgets and related functions.
 
+Requirements:
+-------------
+
+--(n)Curses libraries
+--Curses module
+--Unix 'cal' command (optional, for calendar widget support)
+
 Instructions:
 -------------
 
-Hopefully, all that one needs to do is:
+All that one needs to do is:
 
 	perl Makefile.pl
+	make test
 	make install
 
 Documentation for using the module is available if one types the following:
 
 	perldoc Curses::Widgets
 
-If you find any value in this modules, write me!  All hints, tips, and wishes
+If you find any value in this module, write me!  All hints, tips, and wishes
 are welcome at corliss@odinicfoundation.org.
