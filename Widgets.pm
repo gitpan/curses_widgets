@@ -4,7 +4,7 @@ package Curses::Widgets;
 #
 # Curses Widget Module
 #
-# $Id: Curses::Widgets.pm,v 0.5 1999/01/11 02:09:55 corliss Exp corliss $
+# $Id: Widgets.pm,v 0.6 1999/02/02 17:18:45 corliss Exp corliss $
 #
 # (c) Arthur Corliss, 1998
 #
@@ -18,7 +18,7 @@ use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
 use Exporter;
 use Curses;
 
-$VERSION = .05;
+$VERSION = .06;
 @ISA = qw(Exporter);
 
 @EXPORT		= qw(txt_field buttons init_colours list_box calendar 
@@ -36,6 +36,10 @@ $VERSION = .05;
 # Module code follows. . .
 #
 ########################################################################
+
+BEGIN {
+	my (@cal_output);
+	my ($colour);
 
 sub txt_field {
 	# Draws a text field with a border, with the number of lines and 
@@ -61,20 +65,25 @@ sub txt_field {
 	my ($field_win) = ${ $args{'window'} }->derwin($args{'lines'} + 2,
 		$args{'cols'} + 2, $args{'ypos'}, $args{'xpos'});
 	my ($i, $ch, $k, $x, $y, $input);
-	my ($colour) = has_colors();
 	my ($n_lines, $c_line, $s_line, @lines, %ch_x_ln, $page);
 
 	local *draw = sub {
 		$field_win->erase();
 
-		# Get the line count info, and determine which page to print
+		# Get the line count info
 		@lines = ();
 		%ch_x_ln = ();
 		($n_lines, $c_line) = line_count($args{'content'}, $args{'cols'},
 			$args{'pos'}, \@lines, \%ch_x_ln);
 		$c_line = $n_lines if (! $c_line);
+		
+		# Determine which page to print
 		$page = 0;
 		++$page until ($c_line < ($page * $args{'lines'} + 1));
+		--$page if ($c_line == (($page - 1) * $args{'lines'} + 1) &&
+			substr($args{'content'}, $args{'pos'} - 1, 1) eq "\n");
+
+		# Determine which line to start printing, based on the page
 		if ($args{'lines'} > 1) {
 			$s_line = ($page * $args{'lines'}) - ($args{'lines'} - 1);
 		} else {
@@ -89,8 +98,8 @@ sub txt_field {
 		}
 
 		# Highlight the cursor position
-		$y = 0;
 		if (! $args{'draw_only'}) {
+			$y = 0;
 			for ($i = 1; $i < $c_line; $i++) {
 				$y += $ch_x_ln{$i};
 				++$y if (substr($args{'content'}, $y, 1) eq "\n");
@@ -112,9 +121,23 @@ sub txt_field {
 			$field_win->standend();
 		}
 
-		select_colour(\$field_win, $args{'border'}) if ($colour);
+		# Draw the border
+		if (! $args{'draw_only'}) {
+		select_colour(\$field_win, $args{'border'}) || 
+			$field_win->attron(A_BOLD);
+		} else {
+			select_colour(\$field_win, $args{'border'});
+		}
 		$field_win->box(ACS_VLINE, ACS_HLINE);
 		$field_win->attrset(0);
+
+		# Draw the up arrow, if necessary
+		$field_win->addch(0, $args{'cols'} - 1, ACS_UARROW) if ($page > 1);
+
+		# Draw the down arrow, if necesasry
+		$field_win->addch($args{'lines'} + 1, $args{'cols'} - 1, ACS_DARROW)
+			if ($page < ($n_lines / $args{'lines'}));
+
 		$field_win->refresh();
 	};
 
@@ -153,6 +176,83 @@ sub txt_field {
 			} elsif ($input eq KEY_RIGHT) {
 				++$args{'pos'} if ($args{'pos'} < (length($args{'content'}) 
 					+ 1));
+			} elsif ($input eq KEY_UP) {
+				if ($c_line != 1) {
+					--$c_line if (substr($args{'content'}, $args{'pos'} - 1,
+						1) eq "\n");
+					$args{'pos'} -= $k;
+					--$args{'pos'} if (substr($args{'content'}, $args{'pos'}
+						- 1, 1) eq "\n" && $ch_x_ln{($c_line - 1)} > $k);
+					$args{'pos'} -= ($ch_x_ln{($c_line - 1)} - $k) if
+						($ch_x_ln{($c_line - 1)} > $k);
+				} else {
+					beep();
+				}
+			} elsif ($input eq KEY_DOWN) {
+				if ($c_line != $n_lines) {
+					if (substr($args{'content'}, $args{'pos'} - 1,
+						1) eq "\n") {
+						--$c_line;
+						++$args{'pos'};
+					}
+					$args{'pos'} += ($ch_x_ln{$c_line} - $k + 1);
+					++$args{'pos'} if (substr($args{'content'}, $args{'pos'}
+						- 1, 1) eq "\n");
+					if ($ch_x_ln{($c_line + 1)} > $k) {
+						$args{'pos'} += ($k - 1);
+					} else {
+						$args{'pos'} += $ch_x_ln{($c_line + 1)};
+					}
+				} else {
+					beep();
+				}
+			} elsif ($input eq KEY_PPAGE) {
+				if ($c_line == 1) {
+					beep();
+				} else {
+					if (substr($args{'content'}, $args{'pos'} - 1, 1) 
+						eq "\n") {
+						--$c_line;
+					} else {
+						$args{'pos'} -= $k;
+					}
+					$s_line = $c_line - $args{'lines'};
+					$s_line = 1 if ($s_line < 1);
+					--$c_line;
+					while ($c_line != $s_line) {
+						--$args{'pos'} if (substr($args{'content'},
+							$args{'pos'} - 1, 1) eq "\n");
+						$args{'pos'} -= $ch_x_ln{$c_line};
+						--$c_line;
+					}
+					$args{'pos'} -= ($ch_x_ln{$c_line} - $k) if ($k < 
+						$ch_x_ln{$c_line});
+				}
+			} elsif ($input eq KEY_NPAGE) {
+				if ($c_line == $n_lines) {
+					beep();
+				} else {
+					if (substr($args{'content'}, $args{'pos'} - 1, 1) 
+						eq "\n") {
+						--$c_line;
+					} else {
+						$args{'pos'} += ($ch_x_ln{$c_line} - $k + 1);
+					}
+					$s_line = $c_line + $args{'lines'};
+					$s_line = $n_lines if ($s_line > $n_lines);
+					++$c_line;
+					while ($c_line != $s_line) {
+						++$args{'pos'} if (substr($args{'content'}, 
+							$args{'pos'} - 1, 1) eq "\n");
+						$args{'pos'} += $ch_x_ln{$c_line};
+						++$c_line;
+					}
+					if ($k > $ch_x_ln{$c_line}) {
+						$args{'pos'} += $ch_x_ln{$c_line};
+					} else {
+						$args{'pos'} += $k;
+					}
+				}
 			} elsif ($input eq KEY_HOME) {
 				$args{'pos'} = 1;
 			} elsif ($input eq KEY_END) {
@@ -236,7 +336,8 @@ sub buttons {
 
 sub init_colours {
 	# Initialise colour handling and the colour pairs.
-	my ($colour) = has_colors();
+
+	$colour = has_colors();
 
 	if ($colour) {
 		start_color();
@@ -253,17 +354,21 @@ sub select_colour {
 	#
 	# Parameters passed are as follows:
 	#	(\$window, colour)
-	
-	if ($_[1] eq 'red') {
-		${ $_[0] }->attrset(COLOR_PAIR(1));
-	} elsif ($_[1] eq 'green') {
-		${ $_[0] }->attrset(COLOR_PAIR(2));
-	} elsif ($_[1] eq 'blue') {
-		${ $_[0] }->attrset(COLOR_PAIR(3));
-	} elsif ($_[1] eq 'yellow') {
-		${ $_[0] }->attrset(COLOR_PAIR(4));
-		${ $_[0] }->attron(A_BOLD);
+
+	if ($colour) {
+		if ($_[1] eq 'red') {
+			${ $_[0] }->attrset(COLOR_PAIR(1));
+		} elsif ($_[1] eq 'green') {
+			${ $_[0] }->attrset(COLOR_PAIR(2));
+		} elsif ($_[1] eq 'blue') {
+			${ $_[0] }->attrset(COLOR_PAIR(3));
+		} elsif ($_[1] eq 'yellow') {
+			${ $_[0] }->attrset(COLOR_PAIR(4));
+			${ $_[0] }->attron(A_BOLD);
+		}
 	}
+
+	return $colour;
 }
 
 sub list_box {
@@ -284,7 +389,6 @@ sub list_box {
 	my ($list_win) = ${ $args{'window'} }->derwin($args{'lines'} + 2,
 		$args{'cols'} + 2, $args{'ypos'}, $args{'xpos'});
 	my ($i, $z, $k, $x, $y, @list, $input);
-	my ($colour) = has_colors();
 
 	local *draw = sub {
 		$i = $z = $k = $x = $y = @list = ();
@@ -305,12 +409,26 @@ sub list_box {
 			}
 		}
 
-		select_colour(\$list_win, $args{'border'}) if ($colour);
+		# Draw the border
+		if (! $args{'draw_only'}) {
+			select_colour(\$list_win, $args{'border'}) ||
+				$list_win->attron(A_BOLD);
+		} else {
+			select_colour(\$list_win, $args{'border'});
+		}
 		for ($i = $y + 1; $i < $args{'lines'} + 1; $i++) {
 			$list_win->addch($i, 1, "\n");
 		}
 		$list_win->box(ACS_VLINE, ACS_HLINE);
 		$list_win->attrset(0);
+
+		# Draw the up arrow, if necessary
+		$list_win->addch(0, $args{'cols'} - 1, ACS_UARROW) if ($z > 0);
+
+		# Draw the down arrow, if necesasry
+		$list_win->addch($args{'lines'} + 1, $args{'cols'} - 1, ACS_DARROW)
+			if (($z + $args{'lines'}) < $list[(@list - 1)]);
+
 		$list_win->refresh();
 	};
 
@@ -486,9 +604,6 @@ sub get_cal {
 	close (INPT);
 }
 
-BEGIN {
-	my (@cal_output);
-
 sub calendar {
 	# Draws the Calendar with the specified date highlighted.  Exits
 	# immediately if draw_only is specified, otherwise, blocks and traps
@@ -497,11 +612,12 @@ sub calendar {
 	#
 	# Parameters are passed as follows:
 	#	(\$window, ypos, xpos, \@date_disp [, border] [, \&function] 
-	# 	 [, draw_only])
+	# 	 [, draw_only] [, \@days] [, d_colour])
 	my (%args) = (
 		'ypos'		=> 1,
 		'xpos'		=> 1,
 		'border' 	=> 'red',
+		'd_colour'	=> 'yellow',
 		@_
 	);
 	my ($cal_win) = ${ $args{'window'} }->derwin(10, 24, $args{'ypos'},
@@ -509,7 +625,6 @@ sub calendar {
 	my ($i, $today, $y, $z, $input);
 	my (@spec_keys) = (KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT,
 					   KEY_PPAGE, KEY_NPAGE, KEY_HOME, 't');
-	my ($colour) = has_colors();
 
 	# Get the initial calendar, if none is loaded yet
 	if (! ${ $args{'date_disp'} }[0]) {
@@ -568,7 +683,12 @@ sub calendar {
 		$cal_win->addstr($y + 1, $z + 2, ${ $args{'date_disp'} }[0]);
 		$cal_win->attrset(0);
 
-		select_colour(\$cal_win, $args{'border'}) if ($colour);
+		if (! $args{'draw_only'}) {
+			select_colour(\$cal_win, $args{'border'}) ||
+				$cal_win->attron(A_BOLD);
+		} else {
+			select_colour(\$cal_win, $args{'border'});
+		}
 		$cal_win->box(ACS_VLINE, ACS_HLINE);
 		$cal_win->attrset(0);
 		$cal_win->refresh();

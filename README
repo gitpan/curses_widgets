@@ -17,5 +17,9 @@ Hopefully, all that one needs to do is:
 	perl Makefile.pl
 	make install
 
-If this is not the case, feel free to send a flame to
-corliss@odinicfoundation.org, and I'll get on it.  :-)
+Documentation for using the module is available if one types the following:
+
+	perldoc Curses::Widgets
+
+If you find any value in this modules, write me!  All hints, tips, and wishes
+are welcome at corliss@odinicfoundation.org.

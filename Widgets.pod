@@ -2,13 +2,14 @@
 
 Curses::Widgets -- Curses-based widgets and functions
 
-=head1 VERSION INFO
+=head1 Doc/Module Version info
 
-$Id: Curses::Widgets.pod,v 0.5 1999/01/12 16:22:10 corliss Exp corliss $
+$Id: Widgets.pod,v 0.6 1999/02/02 17:23:50 corliss Exp corliss $
 
 =head1 REQUIREMENTS
 
-Requires the Curses module and the Unix 'cal' command.
+Requires the Curses module, Curses or nCurses libraries, and the Unix 'cal' 
+command.
 
 =head1 DESCRIPTION
 
@@ -33,6 +34,42 @@ Note that all of the widgets strictly use named parameters, while the
 functions use unamed arguments.  All of the either return values, or modify
 references that were passed as arguments.
 
+=head1 EXPORTED
+
+=head2 Default
+
+=over 4
+
+=item * 
+txt_field
+
+=item * 
+buttons
+
+=item * 
+init_colours
+
+=item * 
+list_box
+
+=item * 
+calendar
+
+=item * 
+select_colour
+
+=back
+
+=head2 OK
+
+=over 4
+
+=item * 
+
+line_count
+
+=back
+
 =head1 WIDGETS
 
 =head2 Text field
@@ -42,6 +79,10 @@ relative to the passed window) with a border surrounding the text.  When used
 interactively, it handles its own input, passing back only the keys it
 doesn't know how to handle, as well as the final content string.
 
+The widget provides an arrow superimposed on the border to indicate whether
+there is content that can be scrolled to in that direction.  The arrow only
+appears when the content exceeds the display area.
+
 Currently, this widget will handle any normal characters to be inserted into
 the content string, and the following keys:
 
@@ -50,6 +91,9 @@ the content string, and the following keys:
 	backspace	KEY_BACKSPACE
 	left arrow	KEY_LEFT
 	right arrow	KEY_RIGHT
+	up arrow	KEY_UP
+	down arrow	KEY_DOWN
+	page up		KEY_PPAGE
 	home		KEY_HOME
 	end		KEY_END
 
@@ -85,7 +129,7 @@ All parameters are passed as named parameters:
 tip for debugging:  if either 'xpos', 'ypos', 'lines', or 'cols' cause any
 portion of the window to extend passed the boundaries of the parent window,
 your code will die, claiming that you can't call any operations on an
-undefined window, assuming you're using the -w flag.
+undefined window, assuming you're using the B<w> flag.
 
 'pos' refers to the cursor position for use in interactive mode, so that input
 can be inserted or appended to the content string.  This is ignored if passed
@@ -98,6 +142,29 @@ halfdelay(10) has been called, or on some other interval.
 
 The memory allocated for the window is released when the widget routine exits.
 
+	B<Example (non-Interactive)>
+
+	txt_field( 'window'	=> \$window,
+		   'ypos'	=> 2,
+		   'xpos'	=> $COLS - 5,
+		   'lines'	=> $LINES - 10,
+		   'cols'	=> $COLS - 10,
+		   'content'	=> $note,
+		   'border'	=> 'red',
+		   'draw_only'	=> 1);
+	
+	B<(Interactive)>
+
+	($key, $rtrnd_note) = txt_field( 'window'	=> \$window,
+					 'ypos'		=> 2,
+					 'xpos'		=> $COLS - 5,
+					 'lines'	=> $LINES - 10,
+					 'cols'		=> $COLS - 10,
+					 'content'	=> $note,
+					 'border'	=> 'green',
+					 'pos'		=> length($note),
+					 'function'	=> \&clock);
+
 =head2 List box
 
 The list box widget creates a derived window that holds a scrollable list of
@@ -109,6 +176,10 @@ as the currently selected item.
 	-------------------------------
 	left arrow	KEY_LEFT
 	right arrow	KEY_RIGHT
+
+The widget provides an arrow superimposed on the border to indicate whether
+there is content that can be scrolled to in that direction.  The arrow only
+appears when the content exceeds the display area.
 
 All parameters are passed as named parameters:
 
@@ -135,7 +206,32 @@ All parameters are passed as named parameters:
 All previously described parameters maintain their same use and warnings.
 
 'list' is a hash reference, and a numeric sort is done on the keys, while the
-associated values are what are actually displayed.
+associated values are what are actually displayed.  The keys B<must> be a
+sequential sequence of numbers.  It doesn't care what number you start with,
+but it must be sequential.
+
+	B<Example (non-Interactive)>
+
+	list_box( 'window'	=> \$main,
+		  'ypos'	=> 2,
+		  'lines'	=> 10,
+		  'cols'	=> 25,
+		  'list'	=> \%list,
+		  'border'	=> 'red',
+		  'selected'	=> 1,
+		  'draw_only'	=> 1);
+
+	b<(Interactive)>
+
+	($input, $selected) = list_box( 'window'	=> \$main,
+					'ypos'		=> 2,
+					'xpos'		=> 5,
+					'lines'		=> 10,
+					'cols'		=> 25,
+					'list'		=> \%list,
+					'border'	=> 'green',
+					'selected'	=> $last,
+					'function'	=> \&clock);
 
 =head2 Button set
 
@@ -176,6 +272,20 @@ Again, all previously described parameters remain the same.
 If 'vertical' is passed at all, ie., if the key exists, the button set will be
 rendered as a vertical set.
 
+	B<Example (non-Interactive)>
+
+	buttons( 'window'	=> \$win_bar,
+		 'buttons'	=> \@buttons,
+		 'active_button'=> 2,
+		 'draw_only'	=> 1);
+
+	b<(Interactive)>
+
+	($input, $selected) = buttons( 'windows'	=> \$win_bar,
+				       'buttons'	=> \@buttons,
+				       'active_button'	=> $last,
+				       'function'	=> \&clock);
+
 =head2 Calendar
 
 The calendar widget creates a fully navigable calendar in a derived, bordered
@@ -213,15 +323,31 @@ All parameters are passed as named parameters:
 			default is 0
 
 'date_disp' is an array reference that holds the desired date to display.
-This parameter is required, since this determines the month to display.  The
-first element, [0], is the day, the second, [1], the month, and the third,
-[2], the year.
+This parameter is required, since this determines the month to display.
+Should the widget be called in interactive mode, the reference will be
+modified to display the last date navigated to by the user.  The first 
+element, [0], is the day, the second, [1], the month, and the third, [2], 
+the year.
+
+	B<Example (non-Interactive)>
+
+	calendar( 'window'	=> \$main,
+		  'date_disp'	=> \@date,
+		  'border'	=> 'red',
+		  'draw_only'	=> 1);
+
+	B<(Interactive)>
+
+	$input = calendar( 'window'	=> \$main,
+			   'date_disp'	=> \@date,
+			   'border'	=> 'blue',
+			   'function'	=> \&clock);
 
 =head1 FUNCTIONS
 
-=head2 init_colour
+=head2 init_colours
 
-Usage:  B<init_colour()>
+Usage:  B<init_colours()>
 
 This function returns nothing but checks first to see if the TERM entry in the
 termcap database supports colour, and if so, calls the Curses B<start_color>
@@ -236,6 +362,10 @@ Currently, the colour pairs declared are:
 	   3		Blue, Black
 	   4		Yellow (using A_BOLD), Black
 
+	B<Example>
+
+	init_colours();
+
 =head2 select_colour
 
 Usage:  B<select_colour(\$window, colour)>
@@ -248,6 +378,10 @@ denoting the desired colour.
 Currently, only 'red', 'green', 'blue', and 'yellow' are recognised.  These
 attributes stay in effect until another set is declared, or all attributes are
 reset via B<attrset(0)>.
+
+	B<Example>
+
+	select_colour(\$main, 'yellow');
 
 =head2 line_count
 
@@ -263,14 +397,17 @@ In addition, if passed, the function can modify an array and/or a hash.  In
 the array would be passed the text of each line.  In the hash would be passed
 the number of characters in each line, the key being the line number.
 
+	B<Example>
+
+	($n_lines, $c_line) = line_count($note, 80, 73, \@lines, \%chxln);
+
 =head1 HISTORY
 
-None to speak of, yet.  :-)  This is the first publically released version,
-and a buggy one at that.  Note that I know about the paging function in the
-text fields, and I'll fix it when I get to it.  Or, you can fix it, and send
-me the patch.  E<lt>hint, hintE<gt>
+This is the second developer's release.  No show stopper bugs, everything now
+works as advertised, but more functionality could be added.  And will be,
+don't worry.  :-)
 
 =head1 AUTHOR
 
-This module was written by me.  ;-)  Guess who that is.  All right, Arthur
-Corliss.  :-)
+All bug reports, gripes, adulations, and comments can be sent to Arthur
+Corliss, at B<corliss@odinicfoundation.org>.

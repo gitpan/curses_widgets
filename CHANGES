@@ -1,14 +1,14 @@
 
-RCS file: RCS/Curses_Widgets.pm,v
-Working file: Curses_Widgets.pm
-head: 0.5
+RCS file: RCS/Widgets.pm,v
+Working file: Widgets.pm
+head: 0.6
 branch:
 locks: strict
-	corliss: 0.5
+	corliss: 0.6
 access list:
 symbolic names:
 keyword substitution: kv
-total revisions: 5;	selected revisions: 5
+total revisions: 6;	selected revisions: 6
 description:
 Provides higher level access to self-contained widgets, all
 rendered with Curses.  Requires the Curses module.
@@ -26,7 +26,32 @@ Currently provides:
 	  line length and new lines.  Can also return a hash denoting #
 	  of characters by line, and an array of each line's content.
 ----------------------------
-revision 0.5	locked by: corliss;
+revision 0.6	locked by: corliss;
+date: 1999/02/02 17:18:45;  author: corliss;  state: Exp;  lines: +166 -53
+--Fixed the small problem of the text fields not liking 0s. (Whoops!)
+  Never put the the getch sequence as the test for the while loop. :-P
+--Fixed the cursor location bug, as well as the paging bug.
+--Expanded support for all printable characters on the PC keyboard in
+  text fields.
+--Fixed the cursor/line bug when the cursor position is on the last line,
+  and on a new line character in the text field widget.
+--Added Up/Down arrows to indicate existing content out of view in the
+  window in the text field widget.
+--Added Up/Down arrow, Page Up, Page Down support to the text field widget.
+--Moved the $colour scalar into the BEGIN tag clause, so the has_colors()
+  function need only be called once.
+--Moved conditional declaration of the select_colours function into the
+  function itself, dependent upon the persistent $colour.
+--select_colours now returns a 1 if it could successfully set the colour,
+  as per $colour, and a 0 if not.
+--init_colours() *must* be called now, since this is the routine that sets
+  the value of $colour, and the colour pairs.
+--Each widget now draws its border with A_BOLD if the $colour is not
+  available and 'draw_only' was not set.
+--Added Up/Down arrows to indicate list entries that exist out of view of
+  the window in the list box.
+----------------------------
+revision 0.5
 date: 1999/01/11 02:09:55;  author: corliss;  state: Exp;  lines: +61 -46
 --Fixed some of the bugs in the text field widget, but I still have
   some work to do on the paging portion.
