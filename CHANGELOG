@@ -1,4 +1,26 @@
 ----------------------------
+revision 1.2	locked by: corliss;
+date: 2000/03/17 00:04:38;  author: corliss;  state: Exp;  lines: +103 -37
+--input_box modifications:
+    --Fixed a bug with contents longer than the field width
+    --Box width can now be set by 'cols' parameter
+--txt_field modifications:
+    --Fixed a warning issue with older version of Perl
+    --Added support for the delete key (KEY_DC)
+    --Fixed bug with Perlish false content being converted to ''
+    --Added software cursor disable option
+    --Added more navigation key bindings (KEY_SEARCH/KEY_FIND)
+    --Improved up/down navigation in uneditable fields
+--button_bar modifications:
+    --Fixed draw_only bug (previously checked for existence, not value)
+    --Added regex capability to button bar
+--list_box modifications:
+    --Fixed up/down arrow drawing bug
+    --Added numeric/alphabetic sort option
+    --Added regex capability
+--calendar modifications;
+    --Added regex capability
+----------------------------
 revision 1.1
 date: 2000/02/22 02:04:33;  author: corliss;  state: Exp;  lines: +366 -176
 --input_box modifications:

@@ -4,7 +4,7 @@ Curses::Widgets -- Curses-based widgets and functions
 
 =head1 Doc/Module Version info
 
-$Id: Widgets.pod,v 1.1 2000/02/22 02:05:56 corliss Exp $
+$Id: Widgets.pod,v 1.2 2000/03/17 00:30:03 corliss Exp corliss $
 
 =head1 SYNOPSIS
 
@@ -119,13 +119,14 @@ the content string, and the following keys:
 	Key		Curses Constant
 	-------------------------------
 	backspace	KEY_BACKSPACE
+	delete		KEY_DC
 	left arrow	KEY_LEFT
 	right arrow	KEY_RIGHT
 	up arrow	KEY_UP
 	down arrow	KEY_DOWN
 	page up		KEY_PPAGE
-	home		KEY_HOME
-	end		KEY_END
+	home		KEY_HOME,KEY_FIND
+	end		KEY_END,KEY_SEARCH
 
 All parameters are passed as named parameters:
 
@@ -163,6 +164,8 @@ All parameters are passed as named parameters:
 	title		string, optional
 	regex		string, optional,
 			default is "\t"
+	cursor_disable	integer, optional
+			default is 0
 
 'window' is a object handle to a predefined window or subwindow.  A quick
 tip for debugging:  if either 'xpos', 'ypos', 'lines', or 'cols' cause any
@@ -216,6 +219,14 @@ character class brackets, so don't include regex specific punctuation.
 If you wish both new lines and tabs to shift focus, you would use
 "\t\n".
 
+'cursor_disable' disables the internal routine that prints it's own cursor.
+It's best used when you are passing it a background function that updates
+another portion of the screen, otherwise, when that update occurs, the cursor
+would disappear from the field.  However, if you don't have such a function,
+the cursor will appear right next to the software cursor, giving it the
+appearance of a two character cursor.  In those situations, you should use
+this option to disable the software cursor.
+
 The memory allocated for the window is released when the widget routine exits.
 
 	B<Example (non-Interactive)>
@@ -246,7 +257,8 @@ The memory allocated for the window is released when the widget routine exits.
 The list box widget creates a derived window that holds a scrollable list of
 items, surounded by a border.  When called interactively, it handles it's own
 input for navigation.  Any keys not used for navigation are returned, as well
-as the currently selected item.
+as the currently selected item, unless the 'regex' option is used.  If so, it
+will only return if the key matches the regex.
 
 	Key		Curses Constant
 	-------------------------------
@@ -282,6 +294,9 @@ All parameters are passed as named parameters:
 	draw_only	integer, optional
 			default is 0
 	title		string, optional
+	regex		string, optional
+	sort		string, optional
+			default is 'numeric'
 
 All previously described parameters maintain their same use and warnings.
 
@@ -292,6 +307,13 @@ value when displayed.
 
 If 'list' is an array reference, the list will be displayed in array order,
 and the index number of the element will be returned as the selected value.
+
+'regex' works in the same manner as the the equivalent option in txt_field.
+
+'sort' determines the type of sort used on the key values of lists passed as
+hashes (it has no affect on lists passed as lists).  It defaults to a
+'numeric' sort, but if you wish it to use an 'alphabetic' sort, you just need
+to set it accordingly.
 
 	B<Example (non-Interactive)>
 
@@ -322,7 +344,9 @@ The button bar creates a derived window as well, printing the passed
 buttons, and handles the key strokes to navigate amongst them,
 while passing any other keystrokes and the currently selected button.  The
 button set can be rendered either vertically or horizontally, and the
-keystrokes that can be used for navigation depend upon that.
+keystrokes that can be used for navigation depend upon that.  Like the
+list_box, if the 'regex' option is used, it will only return on matching
+values.
 
 	Key		Curses Constant
 	-------------------------------
@@ -348,6 +372,7 @@ All parameters are passed as named parameters:
 	draw_only	integer, optional
 			default is 0
 	spacing		integer, default is 2
+	regex		string, optional
 
 Again, all previously described parameters remain the same.  Boundary checking
 is still done for the entire bar, and if it exceeds them it will simply be 
@@ -380,7 +405,8 @@ rendered as a vertical set.
 
 The calendar widget creates a fully navigable calendar in a derived, bordered
 window.  The calendar controls its own input until it captures a keystroke it
-doesn't explicitly handle.  In that case, it returns the key.
+doesn't explicitly handle.  In that case, it returns the key.  Like the
+button_bar and list_box, though, this widget has a regex function.
 
 	Key		Curses Constant
 	-------------------------------
@@ -416,6 +442,7 @@ All parameters are passed as named parameters:
 	e_colour	string, optional
 			default is 'red'
 	events		reference
+	regex		string, optional
 
 'date_disp' is an array reference that holds the desired date to display (in
 day, month, year format).  If date_disp is not passed (or an empty list
@@ -445,7 +472,7 @@ leading zeros.
 			   'border'	=> 'blue',
 			   'function'	=> \&clock);
 
-=head2 msg_box
+=head2 Message Box
 
 The msg_box displays the passed message in a new window that erases once
 acknowledged.  It automatically scales and centers itself according to the
@@ -483,7 +510,7 @@ the screen, you may see the message box disappear, though it is still trapping
 key strokes.  To avoid this behaviour, refresh the current screen before
 calling this function.
 
-=head2 input_box
+=head2 Input Box
 
 The input_box displays a dialog box with a prompt, a one-line input field, 
 and a two buttons, B<OK> and B<CANCEL>.  Like the msg_box, this widget
@@ -498,12 +525,18 @@ in the text field is a shortcut for pressing the B<OK> button.
 	-----------------------------------
 	title		string, optional
 	prompt		string, optional
+	cols		integer, optional
 	border		string, optional
 			defaults to 'blue'
 	f_colour	string, optional
 			defaults to 'yellow'
-	c_limit		defaults to 255
+	c_limit		defaults to 4096
+	content		string, optional
 	function	reference, optional
+
+'cols' overrides the internally calculated width requirements (formerly
+determined by the prompt width) to the specified setting.  This forces the
+field width to be cols - 2 in width as well.
 
 'f_colour' is the colour to use for the text field border when it has the
 focus.  It will use the same colour set in 'border'

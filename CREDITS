@@ -1,16 +1,11 @@
-Credits:
-========
+Credits (Alphabetically listed):
+================================
 
 --Credit has to be given, as always, to Larry Wall, for starting this
   train a-rolling.  :-)
---Anthony Rumble:  for a continuous stream of ideas for improvements, catching
-  what I missed, and prototyping new widgets. . .
-
-The Contributor's List:
-=======================
-
-Michael E. Schechter <mschechter@earthlink.net>--contributed code for 
+--Joerg Binder:  contributed code and improvements on the input_box.
+--Patrick Devine:  for fixing the code written while I was asleep at the wheel
+--Anthony Rumble <anthony@linuxhelp.com.au>:  for a continuous stream of ideas 
+  for improvements, catching what I missed, and prototyping new widgets. . .
+--Michael E. Schechter <mschechter@earthlink.net>:  contributed code for 
   internal generation of the Unix 'cal' command.
-Anthony Rumble <anthony@linuxhelp.com.au>--contributed code and idea for the 
-  input_box and msg_box widgets.
-Joerg Binder--contributed code and improvements on the input_box.
