@@ -1,0 +1,68 @@
+
+RCS file: RCS/Curses_Widgets.pm,v
+Working file: Curses_Widgets.pm
+head: 0.5
+branch:
+locks: strict
+	corliss: 0.5
+access list:
+symbolic names:
+keyword substitution: kv
+total revisions: 5;	selected revisions: 5
+description:
+Provides higher level access to self-contained widgets, all
+rendered with Curses.  Requires the Curses module.
+
+Currently provides:
+	--list_box:  provides a scrolling list box
+	--txt_field:  provides a text field
+	--calendar:  provides a navigable calendar
+	--buttons:  provides a vertical or horizontal button set
+	--init_colours:  initialises the colour portion of Curses,
+	  and set ups the primary colour pairs
+	--select_colour:  sets the colour mode for the appropriate
+	  window, by name
+	--line_count:  counts the number of lines, accounting for both
+	  line length and new lines.  Can also return a hash denoting #
+	  of characters by line, and an array of each line's content.
+----------------------------
+revision 0.5	locked by: corliss;
+date: 1999/01/11 02:09:55;  author: corliss;  state: Exp;  lines: +61 -46
+--Fixed some of the bugs in the text field widget, but I still have
+  some work to do on the paging portion.
+--Text field now directly supports teh backspace, home/end, and right/
+  left keys, as well as normal text.
+----------------------------
+revision 0.4
+date: 1999/01/10 20:19:47;  author: corliss;  state: Exp;  lines: +387 -195
+--All widgets now handle their own special keys
+--Text widget now handles modification to content as well, returning the
+  the updated content to the calling routine.
+--cal output now stored in a persistent array, so it only needs to be
+  called when moving to a new month, now.
+--None of the widgets need to have window declared for them, now.  All
+  of them will create their own derived windows, and destroy them upon
+  exiting the routine.
+--Replaced all chr calls in box commands with the ACS_* constants, for
+  more reliable rendering on various term types.
+--New select_colour function for selecting character colour by name.  Only
+  supports red, blue, green, and yellow, currently.
+--More comments, and a few misc. tweaks.
+.
+----------------------------
+revision 0.3
+date: 1999/01/03 23:21:59;  author: corliss;  state: Exp;  lines: +56 -11
+Debuged the Calendar widget for highlighting the current date, optimised
+the code a bit more, and fleshed out more of the comments.
+----------------------------
+revision 0.2
+date: 1998/12/30 18:11:39;  author: corliss;  state: Exp;  lines: +41 -31
+Optimised the code a bit with better if/elsif structures, as well
+as making the colour coding consistent among the widgets and
+optimising the variable declarations.
+----------------------------
+revision 0.1
+date: 1998/12/29 17:18:16;  author: corliss;  state: Exp;
+Text field, list box, buttons, calendar, and init_colours function
+completed, but with little or no error handling.
+=============================================================================

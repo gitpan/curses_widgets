@@ -1,0 +1,276 @@
+=head1 NAME
+
+Curses::Widgets -- Curses-based widgets and functions
+
+=head1 VERSION INFO
+
+$Id: Curses::Widgets.pod,v 0.5 1999/01/12 16:22:10 corliss Exp corliss $
+
+=head1 REQUIREMENTS
+
+Requires the Curses module and the Unix 'cal' command.
+
+=head1 DESCRIPTION
+
+This module provides a standard library of functions and widgets for use in
+creating Curses-based interfaces.  Should work reliably with both Curses and
+nCurses libraries.
+
+Current widgets include:
+
+	Text field (txt_field)
+	List box (list_box)
+	Button sets (buttons)
+	Calendar (calendar)
+
+Extra functions include:
+
+	init_colours
+	select_colour
+	line_coun
+
+Note that all of the widgets strictly use named parameters, while the
+functions use unamed arguments.  All of the either return values, or modify
+references that were passed as arguments.
+
+=head1 WIDGETS
+
+=head2 Text field
+
+The text field widget creates a derived window (which uses coordinates
+relative to the passed window) with a border surrounding the text.  When used
+interactively, it handles its own input, passing back only the keys it
+doesn't know how to handle, as well as the final content string.
+
+Currently, this widget will handle any normal characters to be inserted into
+the content string, and the following keys:
+
+	Key		Curses Constant
+	-------------------------------
+	backspace	KEY_BACKSPACE
+	left arrow	KEY_LEFT
+	right arrow	KEY_RIGHT
+	home		KEY_HOME
+	end		KEY_END
+
+I hope these keys act as one would expect.  In addition, the enter key
+(trapped as "\n") ends the line, and places the cursor on the next line.  The
+tab key (trapped as "\t") causes the widget to return control back to the
+calling routine, as does any other key not explicitly handled.
+
+All parameters are passed as named parameters:
+
+	Parameter	Commments
+	-----------------------------------
+	window		reference
+	ypos		integer, optional,
+			default is 1
+	xpos		integer, optional,
+			default is 1
+	lines		integer, optional,
+			default is 1
+	cols		integer, optional,
+			default is $COLS - 2
+	content		string, optional,
+			default is "\n"
+	pos		integer, optional
+			default is 1
+	border		named colour, optional
+			default is 'red'
+	function	reference, optional
+	draw_only	integer, optional
+			default is 0
+
+'window' is a scalar reference to a predefined window or subwindow.  A quick
+tip for debugging:  if either 'xpos', 'ypos', 'lines', or 'cols' cause any
+portion of the window to extend passed the boundaries of the parent window,
+your code will die, claiming that you can't call any operations on an
+undefined window, assuming you're using the -w flag.
+
+'pos' refers to the cursor position for use in interactive mode, so that input
+can be inserted or appended to the content string.  This is ignored if passed
+in conjunction with the draw_only parameter, if set to any value that
+evaluates to a true value, as per Perl.
+
+'function' is a scalar reference to a subroutine that can be called by the
+widget when it times out, waiting for input.  For this to work, it assumes a
+halfdelay(10) has been called, or on some other interval.
+
+The memory allocated for the window is released when the widget routine exits.
+
+=head2 List box
+
+The list box widget creates a derived window that holds a scrollable list of
+items, surounded by a border.  When called interactively, it handles it's own
+input for navigation.  Any keys not used for navigation are returned, as well
+as the currently selected item.
+
+	Key		Curses Constant
+	-------------------------------
+	left arrow	KEY_LEFT
+	right arrow	KEY_RIGHT
+
+All parameters are passed as named parameters:
+
+	Parameter	Commments
+	-----------------------------------
+	window		reference
+	ypos		integer, optional,
+			default is 1
+	xpos		integer, optional,
+			default is 1
+	lines		integer, optional,
+			default is 1
+	cols		integer, optional,
+			default is $COLS - 2
+	list		reference, optional
+	border		named colour, optional
+			default is 'red'
+	selected	integer, optional,
+			default is 1
+	function	reference, optional
+	draw_only	integer, optional
+			default is 0
+
+All previously described parameters maintain their same use and warnings.
+
+'list' is a hash reference, and a numeric sort is done on the keys, while the
+associated values are what are actually displayed.
+
+=head2 Button set
+
+The button function does not produce a derived window, but instead just prints
+the passed buttons, and handles the key strokes to navigate amongst them,
+while passing any other keystrokes and the currently selected button.  The
+button set can be rendered either vertically or horizontally, and the
+keystrokes that can be used for navigation depend upon that.
+
+	Key		Curses Constant
+	-------------------------------
+	left arrow	KEY_LEFT
+	right arrow	KEY_RIGHT
+	up arrow	KEY_UP
+	down arrow	KEY_DOWN
+
+All parameters are passed as named parameters:
+
+	Parameter	Commments
+	-----------------------------------
+	window		reference
+	buttons		reference
+	ypos		integer, optional,
+			default is 1
+	xpos		integer, optional,
+			default is 1
+	active_button	integer, optional
+	function	reference, optional
+	vertical	integer, optional
+	draw_only	integer, optional
+			default is 0
+
+Again, all previously described parameters remain the same.
+
+'buttons' is an array reference with each element a separate button.
+'active_button' is the element's positional reference.
+
+If 'vertical' is passed at all, ie., if the key exists, the button set will be
+rendered as a vertical set.
+
+=head2 Calendar
+
+The calendar widget creates a fully navigable calendar in a derived, bordered
+window.  The calendar controls its own input until it captures a keystroke it
+doesn't explicitly handle.  In that case, it returns the key.
+
+	Key		Curses Constant
+	-------------------------------
+	left arrow	KEY_LEFT
+	right arrow	KEY_RIGHT
+	up arrow	KEY_UP
+	down arrow	KEY_DOWN
+	home		KEY_HOME
+	page up		KEY_PPAGE
+	page down	KEY_NPAGE
+
+The home key, in this case, moves the selected date to the the current date.
+I've also reserved 't' to do this as well.  The page up and down keys move the
+calendar from month to month.
+
+All parameters are passed as named parameters:
+
+	Parameter	Commments
+	-----------------------------------
+	window		reference
+	ypos		integer, optional,
+			default is 1
+	xpos		integer, optional,
+			default is 1
+	date_disp	reference
+	border		named colour, optional
+			default is 'red'
+	function	reference, optional
+	draw_only	integer, optional
+			default is 0
+
+'date_disp' is an array reference that holds the desired date to display.
+This parameter is required, since this determines the month to display.  The
+first element, [0], is the day, the second, [1], the month, and the third,
+[2], the year.
+
+=head1 FUNCTIONS
+
+=head2 init_colour
+
+Usage:  B<init_colour()>
+
+This function returns nothing but checks first to see if the TERM entry in the
+termcap database supports colour, and if so, calls the Curses B<start_color>
+function.  After that, it declares a basic colour pair set.
+
+Currently, the colour pairs declared are:
+
+	Pair #		Foreground, Background
+	--------------------------------------
+	   1		Red, Black
+	   2		Green, Black
+	   3		Blue, Black
+	   4		Yellow (using A_BOLD), Black
+
+=head2 select_colour
+
+Usage:  B<select_colour(\$window, colour)>
+
+This function sets the character attributes for all subsequent characters to
+the specified colour, for the specified window.  All arguments are required,
+the first being a scalar reference to the window, and the second a string
+denoting the desired colour.
+
+Currently, only 'red', 'green', 'blue', and 'yellow' are recognised.  These
+attributes stay in effect until another set is declared, or all attributes are
+reset via B<attrset(0)>.
+
+=head2 line_count
+
+Usage:  B<line_count(string, line_length [, cur_pos] [, \@lines]>
+			B<[, \%ch_x_ln])>
+
+This function returns first the number of lines in the string, and secondly,
+the line that the cursor is one, if the cursor position was passed.  The
+number of lines are determined by accounting for new line characters and the
+length limit of the lines, as passed in the second argument.
+
+In addition, if passed, the function can modify an array and/or a hash.  In
+the array would be passed the text of each line.  In the hash would be passed
+the number of characters in each line, the key being the line number.
+
+=head1 HISTORY
+
+None to speak of, yet.  :-)  This is the first publically released version,
+and a buggy one at that.  Note that I know about the paging function in the
+text fields, and I'll fix it when I get to it.  Or, you can fix it, and send
+me the patch.  E<lt>hint, hintE<gt>
+
+=head1 AUTHOR
+
+This module was written by me.  ;-)  Guess who that is.  All right, Arthur
+Corliss.  :-)

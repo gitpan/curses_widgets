@@ -1,0 +1,21 @@
+Curses::Widgets Module for Perl
+==============================
+
+Author: Arthur Corliss
+Date:  January 12, 1999
+
+Description:
+------------
+
+High level access to basic Curses widgets and related functions.
+
+Instructions:
+-------------
+
+Hopefully, all that one needs to do is:
+
+	perl Makefile.pl
+	make install
+
+If this is not the case, feel free to send a flame to
+corliss@odinicfoundation.org, and I'll get on it.  :-)

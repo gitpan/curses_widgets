@@ -1,0 +1,8 @@
+Jan 22, 1999
+------------
+--Add more cursor navigation to the text field widget
+--Clean up the code for cursor placement, could be tweaked quite a bit!
+
+Possible:
+---------
+--Add colour options to the Calendar widget for days with appts, etc?
