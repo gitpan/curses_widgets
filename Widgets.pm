@@ -1,36 +1,41 @@
-package Curses::Widgets;
-
 ########################################################################
 #
 # Curses Widget Module
 #
-# $Id: Widgets.pm,v 0.8 1999/06/17 23:39:01 corliss Exp corliss $
+# $Id: Widgets.pm,v 0.9 1999/11/17 02:36:53 corliss Exp corliss $
 #
 # (c) Arthur Corliss, 1998
 #
-# Requires the Curses module for perl, Ncurses libraries, and the Unix
+# Requires the Curses module for perl, (n)Curses libraries, and the Unix
 # cal tool.
 #
 ########################################################################
+
+package Curses::Widgets;
 
 use strict;
 use vars qw(@ISA @EXPORT @EXPORT_OK %EXPORT_TAGS $VERSION);
 use Exporter;
 use Curses;
 
-$VERSION = '0.08';
+$VERSION = '0.09';
 
 @ISA = qw(Exporter);
 
-@EXPORT		= qw(txt_field buttons init_colours list_box calendar 
-				 select_colour);
-@EXPORT_OK	= qw(txt_field buttons init_colours list_box calendar
-				 line_split);
+@EXPORT		= qw(txt_field buttons list_box calendar select_colour msg_box 
+	input_box);
+@EXPORT_OK	= qw(txt_field buttons list_box calendar select_colour 
+	line_split grab_key msg_box input_box);
 %EXPORT_TAGS = (
-		'Functions' => [ qw(txt_field buttons init_colours list_box
-							calendar line_split select_colour) ],
+		'standard' => [ qw(txt_field buttons list_box calendar 
+			select_colour msg_box input_box) ],
+		'functions' => [ qw(select_colour line_split grab_key) ],
+		'all' => [ qw(txt_field buttons list_box calendar msg_box input_box
+			select_colour line_split grab_key) ],
 		# 'Variables' => [ ],
 );
+
+my ($colour, %col_pairs);
 
 ########################################################################
 #
@@ -38,232 +43,247 @@ $VERSION = '0.08';
 #
 ########################################################################
 
-BEGIN {
-	my (@cal_output);
-	my ($colour);
-
 sub txt_field {
 	# Provides an bordered text field, with lines, columns, title,
 	# initial cursor position, focus shift characters, and border 
 	# colour user definable.
 	#
-	# Usage:  ($key, $content) = txt_field( [name => value] );
+	# Usage:  ($key, $content) = txt_field( [name => value], etc. );
 
-	my (%args) = (
+	my %args = (
 		'ypos' 		=> 1,
 		'xpos' 		=> 1,
 		'lines' 	=> 1,
-		'cols'		=> $COLS - 4,
-		'pos'		=> 1,
-		'content'   => '',
+		'pos'		=> 0,
 		'border'	=> 'red',
 		'regex'		=> '\t',
 		'draw_only'	=> 0,
 		@_,
 	);
+	my (@line, $count, $i, $t_line, $curs_pos);
+	my ($ch, $k, $x, $y, $c_line);
+	my $input;
 
-	my ($field_win) = ${ $args{'window'} }->derwin($args{'lines'} + 2,
+	# Check to make sure the text field won't exceed the window boundaries
+	$args{'window'}->getmaxyx($y, $x);
+	if (($args{'cols'} + 2 + $args{'xpos'}) > $x || $args{'xpos'} < 0 ||
+		($args{'lines'} + 2 + $args{'ypos'}) > $y || $args{'ypos'} < 0) {
+		warn "Text field widget's boundaries exceed the parent " .
+			"window's--not drawing.\n";
+		return;
+	}
+	my $fwh = $args{'window'}->derwin($args{'lines'} + 2,
 		$args{'cols'} + 2, $args{'ypos'}, $args{'xpos'});
-	my ($i, $ch, $k, $input);
-	my ($n_lines, $c_line, $s_line, @lines, $curs);
+
+	# Set some sane values
+	$args{'content'} ||= '';
+	if ($args{'pos'} < 0 || $args{'pos'} > length($args{'content'})) {
+		$args{'pos'} = length($args{'content'});
+		++$args{'pos'} if (length($args{'content'}) > 0);
+	}
+	$t_line = 0;
 
 	local *draw = sub {
-		$field_win->erase();
+		$fwh->erase;
+		$args{'pos'} = 0 if ($args{'pos'} < 0);
+		$args{'pos'} = length($args{'content'}) if ($args{'pos'} >
+			length($args{'content'}));
 
-		# Get the line count info
-		@lines = line_split($args{'content'}, $args{'cols'});
-		$n_lines = scalar @lines;
-		if (exists $args{'l_limit'} && ($n_lines > $args{'l_limit'})) {
-			chop($args{'content'});
-			--$n_lines;
+		# Split the lines, and check the line limit, if defined
+		@line = line_split($args{'content'}, $args{'cols'});
+
+		if (exists $args{'l_limit'} && scalar @line > $args{'l_limit'}) {
+			substr($args{'content'}, $args{'pos'} - 1, 1) = '';
 			beep();
+			@line = line_split($args{'content'}, $args{'cols'});
 		}
 
-		# Determince current and starting line via $args{'pos'}
-		$c_line = $k = $i = 0;
-		while ($i < $n_lines) {
-			$k += length($lines[$i]);
-			if ($k > $args{'pos'}) {
-				$c_line = $i + 1;
-				last;
-			}
+		# Determine the cursor row by character position
+		$i = $count = 0;
+		while ($count <= $args{'pos'} && $i < scalar @line) {
+			$curs_pos = $args{'pos'} - $count;
+			$count += length($line[$i]);
 			++$i;
 		}
-		$c_line = $n_lines if ($c_line == 0);
-		++$c_line if (substr($args{'content'}, $args{'pos'} - 2,
-			1) eq "\n" && $args{'pos'} > length($args{'content'}));
-		++$c_line if (substr($args{'content'}, $args{'pos'} - 1,
-			1) eq "\n" && $args{'pos'} == length($args{'content'}));
-		--$c_line if (substr($args{'content'}, $args{'pos'} - 1,
-			1) eq "\n");
-		$s_line = $c_line / $args{'lines'};
-		if (int($s_line) == 0) {
-			$s_line = 1;
-		} elsif (int($s_line) == $s_line) {
-			--$s_line;
-			$s_line = ($s_line * $args{'lines'}) + 1;
-		} else {
-			$s_line = int($s_line);
-			$s_line = ($s_line * $args{'lines'}) + 1;
+		$c_line = $i - 1;
+		$c_line = 0 if ($c_line < 0);
+		if ((length($line[$c_line]) == $args{'cols'} && 
+			substr($args{'content'}, $args{'pos'}, 1) eq "\n") ||
+			($args{'pos'} == length($args{'content'}) &&
+			substr($args{'content'}, $args{'pos'} - 1, 1) eq "\n")) {
+			++$c_line;
+			$curs_pos = 0;
 		}
 
-		# Find the cursor position on the line
-		$k -= length($lines[$c_line]) if 
-			(substr($args{'content'}, $args{'pos'} - 1, 1) eq "\n");
-		$lines[$c_line - 1] = '' if (! defined $lines[$c_line - 1]);
-		$curs = length($lines[$c_line - 1]) - ($k - $args{'pos'});
+		# Determine the top row displayed in the window by cursor row
+		if (($c_line - $t_line) >= $args{'lines'}) {
+			if ($c_line == ($t_line + $args{'lines'})) {
+				++$t_line;
+			} else {
+				while (($t_line + $args{'lines'}) < $c_line) {
+					$t_line += $args{'lines'};
+				}
+			}
+		} elsif ($c_line < $t_line) {
+			if (($t_line - $c_line) == 1) {
+				--$t_line;
+			} else {
+				while ($c_line < $t_line) {
+					$t_line -= $args{'lines'};
+				}
+				$t_line = 0 if ($t_line < 0);
+			}
+		}
 
 		# Write text to the window
 		for ($i = 0; $i < $args{'lines'}; $i++) {
-			if (defined $lines[$s_line + $i - 1]) {
-				$field_win->addstr($i + 1, 1, $lines[$s_line + $i - 1] .
-					"\n");
+			if (defined $line[$t_line + $i]) {
+				$fwh->addstr($i + 1, 1, "$line[$t_line + $i]\n");
 			} else {
-				$field_win->addstr($i + 1, 1, "\n");
+				$fwh->addstr($i + 1, 1, "\n");
 			}
-			if (($s_line + $i) == $c_line) {
-				if ($args{'pos'} > length($args{'content'}) ||
-					substr($args{'content'}, $args{'pos'} - 1, 1) eq
-					"\n") {
-					$ch = ' ';
-				} else {
-					$ch = substr($args{'content'}, $args{'pos'} - 1, 1);
-				}
-				$field_win->standout();
-				$field_win->addch($i + 1, $curs, $ch);
-				$field_win->standend();
+		}
+
+		# Draw the cursor
+		if (! $args{'draw_only'}) {
+			if (($args{'pos'} + 1) > length($args{'content'}) ||
+				substr($args{'content'}, $args{'pos'}, 1) eq
+				"\n") {
+				$ch = ' ';
+			} else {
+				$ch = substr($args{'content'}, $args{'pos'}, 1);
 			}
+			$fwh->standout();
+			$fwh->addch(($c_line - $t_line) + 1, $curs_pos + 1, $ch);
+			$fwh->standend();
 		}
 
 		# Draw the border and title
 		if (! $args{'draw_only'}) {
-		select_colour(\$field_win, $args{'border'}) || 
-			$field_win->attron(A_BOLD);
+		select_colour($fwh, $args{'border'}) || 
+			$fwh->attron(A_BOLD);
 		} else {
-			select_colour(\$field_win, $args{'border'});
+			select_colour($fwh, $args{'border'});
 		}
-		$field_win->box(ACS_VLINE, ACS_HLINE);
-		$field_win->attrset(0);
+		$fwh->box(ACS_VLINE, ACS_HLINE);
+		$fwh->attrset(0);
 		if (exists $args{'title'}) {
 			$args{'title'} = substr($args{'title'}, 0, $args{'cols'})
 				if (length($args{'title'}) > $args{'cols'});
-			$field_win->standout();
-			$field_win->addstr(0, 1, $args{'title'});
-			$field_win->standend();
+			$fwh->standout();
+			$fwh->addstr(0, 1, $args{'title'});
+			$fwh->standend();
 		}
 
 		# Draw the up arrow, if necessary
-		$field_win->addch(0, $args{'cols'} - 1, ACS_UARROW) if 
-			($s_line > 1);
+		$fwh->addch(0, $args{'cols'} - 1, ACS_UARROW) if 
+			($t_line > 0);
 
 		# Draw the down arrow, if necessary
-		$field_win->addch($args{'lines'} + 1, $args{'cols'} - 1, ACS_DARROW)
-			if (($s_line + $args{'lines'} - 1) < $n_lines);
+		$fwh->addch($args{'lines'} + 1, $args{'cols'} - 1, ACS_DARROW)
+			if (($t_line + $args{'lines'}) < scalar @line);
 
-		$field_win->refresh();
+		$fwh->refresh;
 	};
 
 	draw();
 	if (! $args{'draw_only'}) {
-		$field_win->keypad(1);
+		$fwh->keypad(1);
 		while (1) {
-			$input = grab_key(\$field_win, $args{'function'});
+			$input = grab_key($fwh, $args{'function'});
 			if ($input =~ /^[$args{'regex'}]$/) {
+				$fwh->delwin;
 				return ($input, $args{'content'});
-				last;
 			} elsif ($input eq KEY_BACKSPACE) {
-				if ($args{'pos'} != 1) {
-					substr($args{'content'}, $args{'pos'} - 2, 1) = '';
+				if ($args{'pos'} > 0) {
+					substr($args{'content'}, $args{'pos'} - 1, 1) = '';
 					--$args{'pos'};
 				} else {
 					beep();
 				}
 			} elsif ($input eq KEY_LEFT) {
-				if ($args{'pos'} > 1) {
+				if ($args{'pos'} > 0) {
 					--$args{'pos'};
 				} else {
 					beep();
 				}
 			} elsif ($input eq KEY_RIGHT) {
-				if ($args{'pos'} < (length($args{'content'}) + 1)) {
+				if ($args{'pos'} < length($args{'content'})) {
 					++$args{'pos'};
 				} else {
 					beep();
 				}
 			} elsif ($input eq KEY_UP) {
-				if ($c_line != 1) {
-					if (length($lines[$c_line - 2]) < $curs) {
-						$args{'pos'} -= $curs;
+				if ($c_line != 0) {
+					if (length($line[$c_line - 1]) < $curs_pos) {
+						$args{'pos'} -= ($curs_pos + 1);
 					} else {
-						$args{'pos'} -= length($lines[$c_line - 2]);
+						$args{'pos'} -= length($line[$c_line - 1]);
 					}
 				} else {
 					beep();
 				}
 			} elsif ($input eq KEY_DOWN) {
-				if ($c_line != $n_lines) {
-					if (length($lines[$c_line]) >= $curs) {
-						$args{'pos'} += length($lines[$c_line - 1]);
+				if ($c_line != (scalar @line - 1)) {
+					if (length($line[$c_line + 1]) < $curs_pos) {
+						$args{'pos'} += (length($line[$c_line]) -
+							$curs_pos);
 					} else {
-						$args{'pos'} += (length($lines[$c_line - 1]) - $curs);
-						$args{'pos'} += length($lines[$c_line]);
+						$args{'pos'} += length($line[$c_line]);
 					}
 				} else {
 					beep();
 				}
 			} elsif ($input eq KEY_PPAGE) {
-				if ($s_line != 1) {
-					$i = $c_line - 1 - $args{'lines'};
-					$args{'pos'} -= $curs;
-					--$c_line;
-					while (($c_line - 1) != $i) {
-						$args{'pos'} -= length($lines[$c_line - 1]);
-						--$c_line;
+				if ($t_line != 0) {
+					$i = $c_line - $args{'lines'} + 1;
+					$i = 1 if ($i < 1);
+					foreach (@line[$i..($c_line - 1)]) {
+						$args{'pos'} -= length($_);
 					}
-					if (length($lines[$i]) >= $curs) {
-						$args{'pos'} -= (length($lines[$c_line - 1]) -
-							$curs);
+					--$i;
+					if ($curs_pos > length($line[$i])) {
+						$args{'pos'} -= ($curs_pos + 1);
+					} else {
+						$args{'pos'} -= length($line[$i]);
 					}
 				} else {
 					beep();
 				}
 			} elsif ($input eq KEY_NPAGE) {
-				if (($s_line + $args{'lines'}) <= $n_lines) {
-					if (($c_line + $args{'lines'}) > $n_lines) {
-						$args{'pos'} = length($args{'content'}) + 1;
+				if (($t_line + $args{'lines'}) <= scalar @line) {
+					$args{'pos'} += (length($line[$c_line]) - $curs_pos);
+					$i = 1;
+					while (($i + $c_line) < (scalar @line - 1) && $i <
+						$args{'lines'}) {
+						$args{'pos'} += length($line[$i + $c_line]);
+						++$i;
+					}
+					if (length($line[$i + $c_line]) > $curs_pos) {
+						$args{'pos'} += $curs_pos;
 					} else {
-						$i = $c_line + $args{'lines'};
-						if (length($lines[$i - 1]) < $curs) {
-							$args{'pos'} += (length($lines[$c_line - 1])
-								- $curs);
-							$args{'pos'} += length($lines[$i - 1]);
-							++$c_line;
-						}
-						while ($c_line < $i) {
-							$args{'pos'} += length($lines[$c_line - 1]);
-							++$c_line;
-						}
+						$args{'pos'} += (length($line[$i + $c_line]) - 1);
 					}
 				} else {
 					beep();
 				}
 			} elsif ($input eq KEY_HOME) {
-				$args{'pos'} = 1;
+				$args{'pos'} = 0;
 			} elsif ($input eq KEY_END) {
-				$args{'pos'} = length($args{'content'}) + 1;
+				$args{'pos'} = length($args{'content'});
 			} else {
 				if (exists $args{'c_limit'} &&
 					length($args{'content'}) == $args{'c_limit'}) {
 					beep();
 				} else {
-					if ($args{'pos'} == 1) {
+					if ($args{'pos'} == 0) {
 						$args{'content'} = $input . $args{'content'};
-					} elsif ($args{'pos'} > (length($args{'content'}) + 1)) {
+					} elsif ($args{'pos'} > length($args{'content'})) {
 						$args{'content'} .= $input;
 					} else {
-						$args{'content'} = substr($args{'content'}, 0, 
-							$args{'pos'} - 1) . $input . substr(
-							$args{'content'}, $args{'pos'} - 1);
+						$args{'content'} = substr($args{'content'}, 0,
+							$args{'pos'}) . $input .
+							substr($args{'content'}, $args{'pos'});
 					}
 					++$args{'pos'};
 				}
@@ -271,44 +291,72 @@ sub txt_field {
 			draw();
 		}
 	}
-	$field_win->delwin();
+	$fwh->delwin;
 }
 
 sub buttons {
 	# Draws a set of vertical or horizontal buttons.
 	#
-	# Usage:  ($key, $selected) = buttons( [name => value] );
+	# Usage:  ($key, $selected) = buttons( [name => value], etc. );
 
-	my (%args) = (
+	my %args = (
 		'ypos' 			=> 1,
 		'xpos'			=> 1,
+		'spacing'		=> 2,
+		'active_button'	=> 0,
 		@_,
 	);
-	my ($input, $i, $x, $y, $k);
+	my ($input, $i, $x, $y, $k, $bwh);
+	my ($x2, $y2, $maxx, $maxy);
+
+	# Get the window boundaries
+	$args{'window'}->getmaxyx($y2, $x2);
+	$maxy = $args{'ypos'};
+	$maxx = $args{'xpos'};
+	if ($args{'vertical'}) {
+		foreach (@{ $args{'buttons'} }) {
+			$maxy += $args{'spacing'};
+			$maxx = length($_) if (length($_) > $maxx);
+		}
+		$maxy -= $args{'spacing'};
+	} else {
+		foreach (@{ $args{'buttons'} }) {
+			$maxx += (length($_) + $args{'spacing'});
+		}
+		$maxx -= $args{'spacing'};
+	}
+	if ($maxy > $y2 || $args{'ypos'} < 0 || $maxx > $x2 || 
+		$args{'xpos'} < 0) {
+		warn "Button bar widget's boundaries exceed the parent " .
+			"window's--not drawing.\n";
+		return;
+	}
+	$maxy = $maxy - $args{'ypos'} + 1;
+	$bwh = $args{'window'}->derwin($maxy, $maxx, $args{'ypos'}, 
+		$args{'xpos'});
 
 	local *draw = sub {
-		$x = $args{'xpos'};
-		$y = $args{'ypos'};
-		$i = 0;
+		$x = $y = $i = 0;
 		foreach (@{ $args{'buttons'} }) {
-			if (exists $args{'vertical'}) {
-				$y += 2 if ($i > 0);
+			if ($args{'vertical'}) {
+				$y += $args{'spacing'} if ($i > 0);
 			} else {
-				($x += (2 + $i)) if ($i > 0);
+				($x += ($args{'spacing'} + $i)) if ($i > 0);
 			}
-			${ $args{'window'} }->standout() if ($_ eq
-				${ $args{'buttons'} }[$args{'active_button'}]);
-			${ $args{'window'} }->addstr($y, $x, $_);
-			${ $args{'window'} }->standend() if ($_ eq
-				${ $args{'buttons'} }[$args{'active_button'}]);
 			$i = length($_);
+			$bwh->standout() if ($_ eq 
+				$args{'buttons'}[$args{'active_button'}]);
+			$bwh->addstr($y, $x, $_);
+			$bwh->standend() if ($_ eq
+				$args{'buttons'}[$args{'active_button'}]);
 		}
+		$bwh->refresh;
 	};
 
 	draw();
 	if (! exists $args{'draw_only'}) {
-		${ $args{'window'} }->keypad(1);
-		while ($input = grab_key($args{'window'}, $args{'function'})) {
+		$bwh->keypad(1);
+		while ($input = grab_key($bwh, $args{'function'})) {
 			$k = 0;
 			if (exists $args{'vertical'}) {
 				if ($input eq KEY_UP) {
@@ -336,54 +384,64 @@ sub buttons {
 				}
 			}
 			if ($k == 0) {
+				$bwh->delwin;
 				return ($input, $args{'active_button'});
-				last;
 			}
 		}
 	}
-}
-
-sub init_colours {
-	# Initialise colour handling and the colour pairs.
-	#
-	# Usage:  init_colours();
-
-	$colour = has_colors();
-
-	if ($colour) {
-		start_color();
-		init_pair(1, COLOR_BLUE, COLOR_BLACK);
-		init_pair(2, COLOR_CYAN, COLOR_BLACK);
-		init_pair(3, COLOR_GREEN, COLOR_BLACK);
-		init_pair(4, COLOR_MAGENTA, COLOR_BLACK);
-		init_pair(5, COLOR_RED, COLOR_BLACK);
-		init_pair(6, COLOR_WHITE, COLOR_BLACK);
-		init_pair(7, COLOR_YELLOW, COLOR_BLACK);
-	}
+	$bwh->delwin;
 }
 
 sub select_colour {
 	# Internal and external subroutine.  Used by all widgets.  Selects 
 	# the desired colour pair.
 	#
-	# Usage:  select_colour(\$mwh, 'red');
+	# Usage:  select_colour($mwh, 'red', ['black']);
 
+	my ($wh, $fore, $back) = @_;
+	my %colours = ( 'black' => COLOR_BLACK,		'cyan'		=> COLOR_CYAN,
+					'green' => COLOR_GREEN,		'magenta'	=> COLOR_MAGENTA,
+					'red'	=> COLOR_RED,		'white'		=> COLOR_WHITE,
+					'yellow'=> COLOR_YELLOW,	'blue'		=> COLOR_BLUE);
+	my (@pairs, $pr);
+
+	# Make sure the foreground was specified at a minimum.
+	if (! defined $fore) {
+		warn "No foreground colour specified--ignoring command.\n";
+		return 0;
+	}
+
+	# Set defualt if necessary
+	$back = "black" if (! defined $back);
+
+	# If $colour hasn't been defined, assume that colour mode hasn't been
+	# initialised, either.
+	if (! defined $colour) {
+		$colour = has_colors();
+		start_color();
+	}
+
+	# Process only if on a colour-capable console
 	if ($colour) {
-		if ($_[1] eq 'blue') {
-			${ $_[0] }->attrset(COLOR_PAIR(1));
-		} elsif ($_[1] eq 'cyan') {
-			${ $_[0] }->attrset(COLOR_PAIR(2));
-		} elsif ($_[1] eq 'green') {
-			${ $_[0] }->attrset(COLOR_PAIR(3));
-		} elsif ($_[1] eq 'magenta') {
-			${ $_[0] }->attrset(COLOR_PAIR(4));
-		} elsif ($_[1] eq 'red') {
-			${ $_[0] }->attrset(COLOR_PAIR(5));
-		} elsif ($_[1] eq 'white') {
-			${ $_[0] }->attrset(COLOR_PAIR(6));
-		} elsif ($_[1] eq 'yellow') {
-			${ $_[0] }->attrset(COLOR_PAIR(7));
-			${ $_[0] }->attron(A_BOLD);
+
+		# Check to see if the colour pair has already been defined
+		if (exists $col_pairs{"$fore:$back"}) {
+			$wh->attrset(COLOR_PAIR($col_pairs{"$fore:$back"}));
+			$wh->attron(A_BOLD) if ($fore eq "yellow");
+		} else {
+
+			# Define a new colour pair if valid colours were passed
+			if (exists $colours{$fore} && exists $colours{$back}) {
+				@pairs = map { $col_pairs{$_} } keys %col_pairs;
+				$pr = 1;
+				while (grep /^$pr$/, @pairs) { ++$pr };
+				init_pair($pr, $colours{$fore}, $colours{$back});
+				$col_pairs{"$fore:$back"} = $pr;
+				$wh->attrset(COLOR_PAIR($col_pairs{"$fore:$back"}));
+				$wh->attron(A_BOLD) if ($fore eq "yellow");
+			} else {
+				warn "Invalid color pair passed:  $fore/$back--ignoring.\n";
+			}
 		}
 	}
 
@@ -395,73 +453,81 @@ sub list_box {
 	# columns user definable, as well as the list, title, 
 	# and the border colour.
 	#
-	# Usage:  ($key, $selected) = list_box( [name => value] );
+	# Usage:  ($key, $selected) = list_box( [name => value], etc. );
 
-	my (%args) = (
+	my %args = (
 		'ypos' 		=> 1,
 		'xpos' 		=> 1,
 		'lines' 	=> 1,
+		'list'		=> { },
 		'cols'		=> $COLS - 2,
 		@_,
 	);
-	my ($list_win) = ${ $args{'window'} }->derwin($args{'lines'} + 2,
+	my @list = sort { $a <=> $b } keys (%{ $args{'list'} });
+	my ($i, $z, $y, $input, $lwh);
+	my ($x2, $y2);
+
+	# Get the window boundaries and exit if the widget will exceed them
+	$args{'window'}->getmaxyx($y2, $x2);
+	if (($args{'cols'} + 2 + $args{'xpos'}) > $x2 || $args{'xpos'} < 0 || 
+		($args{'lines'} + 2 + $args{'ypos'}) > $y2 || $args{'ypos'} < 0) {
+		warn "List box widget's boundaries exceed the parent " .
+			"window's--not drawing.\n";
+		return;
+	}
+	$lwh = $args{'window'}->derwin($args{'lines'} + 2,
 		$args{'cols'} + 2, $args{'ypos'}, $args{'xpos'});
-	my ($i, $z, $k, $x, $y, @list, $input);
 
 	local *draw = sub {
-		$i = $z = $k = $x = $y = @list = ();
+		$i = $z = $y = 0;
+
 		# Print the list, with the correct entry highlighted
-		if (exists ($args{'list'})) {
-			@list = sort { $a <=> $b } keys (%{ $args{'list'} });
-			$args{'selected'} = $list[0] if (! exists $args{'selected'});
-			$k = @list;
-			$z = $args{'selected'} - $args{'lines'} if 
-				($args{'selected'} > $args{'lines'});
-			for ($i = $z; $i < $k && $i < $args{'lines'} + 1 + $z; $i++) {
-				++$y;
-				$list_win->standout() if 
-					($list[$i] == $args{'selected'});
-				$list_win->addstr($y, 1, substr(${ $args{'list'} }{$list[$i]}, 
-					0, $args{'cols'}) . "\n");
-				$list_win->standend() if ($list[$i] == $args{'selected'});
-			}
+		$args{'selected'} = $list[0] if (! exists $args{'selected'});
+		$z = $args{'selected'} - $args{'lines'} if 
+			($args{'selected'} > $args{'lines'});
+		for ($i = $z; $i < @list && $i < $args{'lines'} + 1 + $z; $i++) {
+			++$y;
+			$lwh->standout() if 
+				($list[$i] == $args{'selected'});
+			$lwh->addstr($y, 1, substr(${ $args{'list'} }{$list[$i]}, 
+				0, $args{'cols'}) . "\n");
+			$lwh->standend() if ($list[$i] == $args{'selected'});
 		}
 
 		# Draw the border title
 		if (! $args{'draw_only'}) {
-			select_colour(\$list_win, $args{'border'}) ||
-				$list_win->attron(A_BOLD);
+			select_colour($lwh, $args{'border'}) ||
+				$lwh->attron(A_BOLD);
 		} else {
-			select_colour(\$list_win, $args{'border'});
+			select_colour($lwh, $args{'border'});
 		}
 		for ($i = $y + 1; $i < $args{'lines'} + 1; $i++) {
-			$list_win->addch($i, 1, "\n");
+			$lwh->addch($i, 1, "\n");
 		}
-		$list_win->box(ACS_VLINE, ACS_HLINE);
-		$list_win->attrset(0);
+		$lwh->box(ACS_VLINE, ACS_HLINE);
+		$lwh->attrset(0);
 		if (exists $args{'title'}) {
 			$args{'title'} = substr($args{'title'}, 0, $args{'cols'})
 				if (length($args{'title'}) > $args{'cols'});
-			$list_win->standout();
-			$list_win->addstr(0, 1, $args{'title'});
-			$list_win->standend();
+			$lwh->standout();
+			$lwh->addstr(0, 1, $args{'title'});
+			$lwh->standend();
 		}
 
 		# Draw the up arrow, if necessary
-		$list_win->addch(0, $args{'cols'} - 1, ACS_UARROW) if ($z > 0);
+		$lwh->addch(0, $args{'cols'} - 1, ACS_UARROW) if ($z > 0);
 
 		# Draw the down arrow, if necesasry
-		$list_win->addch($args{'lines'} + 1, $args{'cols'} - 1, ACS_DARROW)
+		$lwh->addch($args{'lines'} + 1, $args{'cols'} - 1, ACS_DARROW)
 			if (($z + $args{'lines'}) < $list[(@list - 1)]);
 
-		$list_win->refresh();
+		$lwh->refresh();
 	};
 
 	draw();
 	if (! exists $args{'draw_only'}) {
-		$list_win->keypad(1);
-		while ($input = grab_key(\$list_win, $args{'function'})) {
-			$k = 0;
+		$lwh->keypad(1);
+		while ($input = grab_key($lwh, $args{'function'})) {
 			if ($input eq KEY_UP || $input eq KEY_DOWN) {
 				if ($input eq KEY_UP) {
 					--$args{'selected'} if (exists 
@@ -470,16 +536,14 @@ sub list_box {
 					++$args{'selected'} if (exists
 						${ $args{'list'} }{$args{'selected'} + 1});
 				}
-				$k = 1;
 				draw();
-			}
-			if ($k == 0) {
+			} else {
+				$lwh->delwin;
 				return ($input, $args{'selected'});
-				last;
 			}
 		}
 	}
-	$list_win->delwin();
+	$lwh->delwin;
 }
 
 sub line_split {
@@ -490,62 +554,72 @@ sub line_split {
 	# Usage:  @lines = line_split($string, 80);
 
 	my ($content, $col_lim) = @_;
-	my ($len) = length($content);
-	my ($ch, $m, @lines, $tmp);
+	my ($m, @line);
 
-	--$col_lim;
-	while ($len > 0) {
-		if (substr($content, 0, $col_lim) =~ /\n/o) {
-			$tmp = substr($content, 0, $col_lim - 1);
-			$tmp =~ /^(.*\n){1}/;
-			push (@lines, $1);
-			$tmp = length($1);
-			substr($content, 0, $tmp) = '';
-		} else {
-			if ($len < $col_lim) {
-				push(@lines, $content);
-				$content = '';
-			} elsif (length($content) >= ($col_lim + 1) &&
-				substr($content, $col_lim, 1) =~ /\s/o) {
-				push (@lines, substr($content, 0, $col_lim + 1));
-				substr($content, 0, $col_lim + 1) = '';
-			} elsif (substr($content, $col_lim - 1, 1) =~ /\s/o) {
-				push (@lines, substr($content, 0, $col_lim));
-				substr($content, 0, $col_lim) = '';
-			} else {
-				$m = ($col_lim - 2);
-				$ch = substr($content, $m, 1);
-				while ($ch !~ /\s/o && $m > 0) {
-					--$m;
-					$ch = substr($content, $m, 1);
-				}
-				if ($m > 0) {
-					push (@lines, substr($content, 0, $m + 1));
-					substr($content, 0, $m + 1) = '';
+	if (length($content) == 0) {
+		push (@line, '');
+	} else {
+		foreach (split(/(\n)/, $content)) {
+			if (length($_) <= $col_lim) {
+				if ($_ eq "\n") {
+					if (scalar @line > 0) {
+						$line[scalar @line - 1] .= $_;
+					} else {
+						push (@line, $_);
+					}
 				} else {
-					push (@lines, substr($content, 0, $col_lim + 1));
-					substr($content, 0, $col_lim + 1) = '';
+					push (@line, $_);
+				}
+			} else {
+				if (/\b/) {
+					while (length($_) > $col_lim) {
+						while (/\b/g) {
+							if ((pos) <= $col_lim) {
+								$m = pos;
+							} else {
+								last;
+							}
+						}
+						++$m if (substr($_, $m, 1) =~ /\s/);
+						push (@line, substr($_, 0, $m));
+						$_ = substr($_, $m);
+					}
+					push (@line, $_);
+				} else {
+					while (length($_) > $col_lim) {
+						push (@line, substr($_, 0, $col_lim));
+						$_ = substr($_, $col_lim);
+					}
+					push (@line, $_);
 				}
 			}
 		}
-		$len = length($content);
 	}
 
-	return (@lines);
+	return @line;
 }
 
 sub grab_key {
 	# Internal subroutine only.  Used by any widgets that need some sort
 	# of key handling for internal functions.
 	#
-	# Usage:  $input = grab_key(\$func_ref);
+	# Usage:  $input = grab_key($wh, \&func_ref);
 
-	my ($key) = -1;
-	my ($func) = $_[1];
+	my ($key, $win, $func) = (-1, @_);
 
 	while ($key eq -1) {
-		$key = ${ $_[0] }->getch();
-		&$func() if (defined ($_[1]));
+		$key = $win->getch();
+
+		# Hack for broken termcaps
+		$key = KEY_BACKSPACE if ($key eq "\x7f");
+		if ($key eq "\x1b") {
+			$key .= $win->getch();
+			$key .= $win->getch();
+		}
+		$key = KEY_HOME if ($key eq "\x1bOH");
+		$key = KEY_END if ($key eq "\x1bOF");
+
+		&$func() if (defined ($func));
 	}
 
 	return $key;
@@ -555,64 +629,60 @@ sub set_day {
 	# Internal subroutine only.  Used by the Calendar widget.  Moves the
 	# date in the direction provided by the passed argument.
 	#
-	# Usage:  set_day($key_passed, \@date_disp, \@cal_output);
+	# Usage:  set_day($key_passed, @date_disp);
 
-	my (@days) = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
-	my ($x, $y);
+	my ($key, @date) = @_;
+	my @days = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
+	my ($x, $y, $out);
 
-	if (defined $_[0]) {
-		$days[1] += 1 if (((${ $_[1] }[2] / 4) !~ /\./) &&
-			(((${ $_[1] }[2] / 100) =~ /\./) ||
-			((${ $_[1] }[2] / 400) !~ /\./)));
-		if ($_[0] eq KEY_LEFT) {
-			${ $_[1] }[0] -= 1;
-			if (${ $_[1] }[0] == 0) {
-				move_month(-1, \@{ $_[1] });
-				${ $_[1] }[0] = $days[${ $_[1] }[1] - 1];
-				get_cal(\@{ $_[1] }, \@{ $_[2] });
-			}
-		} elsif ($_[0] eq KEY_RIGHT) {
-			${ $_[1] }[0] += 1;
-			if (${ $_[1] }[0] > $days[${ $_[1] }[1] - 1]) {
-				${ $_[1] }[0] = 1;
-				move_month(1, \@{ $_[1] });
-				get_cal(\@{ $_[1] }, \@{ $_[2] });
-			}
-		} elsif ($_[0] eq KEY_UP) {
-			${ $_[1] }[0] -= 7;
-			if (${ $_[1] }[0] < 1) {
-				move_month(-1, \@{ $_[1] });
-				get_cal(\@{ $_[1] }, \@{ $_[2] });
-				${ $_[1] }[0] = $days[${ $_[1] }[1] - 1] - 
-					(${ $_[1] }[0] * -1);
-			}
-		} elsif ($_[0] eq KEY_DOWN) {
-			${ $_[1] }[0] += 7;
-			if (${ $_[1] }[0] > $days[${ $_[1] }[1] - 1]) {
-				move_month(1, \@{ $_[1] });
-				get_cal(\@{ $_[1] }, \@{ $_[2] });
-				${ $_[1] }[0] = ${ $_[1] }[0] - $days[${ $_[1] }[1] - 1];
-			}
-		} elsif ($_[0] eq KEY_NPAGE) {
-			$x = ${ $_[1] }[1] - 1;
-			move_month(1, \@{ $_[1] });
-			$y = ${ $_[1] }[1] - 1;
-			${ $_[1] }[0] = $days[$y] if (${ $_[1] }[0] > $days[$y]);
-			get_cal(\@{ $_[1] }, \@{ $_[2] });
-		} elsif ($_[0] eq KEY_PPAGE) {
-			$x = ${ $_[1] }[1] -1;
-			move_month(-1, \@{ $_[1] });
-			$y = ${ $_[1] }[1] - 1;
-			${ $_[1] }[0] = $days[$y] if (${ $_[1] }[0] > $days[$y]);
-			get_cal(\@{ $_[1] }, \@{ $_[2] });
-		} elsif ($_[0] eq KEY_HOME) {
-			@{ $_[1] } = ();
-			@{ $_[1] } = (localtime)[3..5];
-			${ $_[1] }[1] += 1;
-			${ $_[1] }[2] += 1900;
-			get_cal(\@{ $_[1] }, \@{ $_[2] });
+	# Adjust for leap years, if necessary
+	$days[1] += 1 if ((($date[2] / 4) !~ /\./) &&
+		((($date[2] / 100) =~ /\./) ||
+		(($date[2] / 400) !~ /\./)));
+
+	# Navigate according to key press
+	if ($key eq KEY_LEFT) {
+		$date[0] -= 1;
+		if ($date[0] == 0) {
+			@date = move_month(-1, @date);
+			$date[0] = $days[$date[1] - 1];
 		}
+	} elsif ($key eq KEY_RIGHT) {
+		$date[0] += 1;
+		if ($date[0] > $days[$date[1] - 1]) {
+			$date[0] = 1;
+			@date = move_month(1, @date);
+		}
+	} elsif ($key eq KEY_UP) {
+		$date[0] -= 7;
+		if ($date[0] < 1) {
+			@date = move_month(-1, @date);
+			$date[0] = $days[$date[1] - 1] - 
+				($date[0] * -1);
+		}
+	} elsif ($key eq KEY_DOWN) {
+		$date[0] += 7;
+		if ($date[0] > $days[$date[1] - 1]) {
+			@date = move_month(1, @date);
+			$date[0] = $date[0] - $days[$date[1] - 1];
+		}
+	} elsif ($key eq KEY_NPAGE) {
+		$x = $date[1] - 1;
+		@date = move_month(1, @date);
+		$y = $date[1] - 1;
+		$date[0] = $days[$y] if ($date[0] > $days[$y]);
+	} elsif ($key eq KEY_PPAGE) {
+		$x = $date[1] - 1;
+		@date = move_month(-1, @date);
+		$y = $date[1] - 1;
+		$date[0] = $days[$y] if ($date[0] > $days[$y]);
+	} elsif ($_[0] eq KEY_HOME) {
+		@date = (localtime)[3..5];
+		$date[1] += 1;
+		$date[2] += 1900;
 	}
+
+	return @date;
 }
 
 sub move_month {
@@ -620,31 +690,138 @@ sub move_month {
 	# month value to the correct value when navigating to a subsequent or
 	# previous year.
 	#
-	# Usage: move_month($month_offset, \@date_disp);
+	# Usage: move_month($month_offset, @date_disp);
 
-	if ((defined $_[0]) && ($_[0] =~ /^[-+]?\d+$/)) {
-		${ $_[1] }[1] += $_[0];
-		if (${ $_[1] }[1] < 1) {
-			${ $_[1] }[1] = 12;
-			${ $_[1] }[2] -= 1;
-		} elsif (${ $_[1] }[1] > 12) {
-			${ $_[1] }[1] = 1;
-			${ $_[1] }[2] += 1;
-		}
+	my ($offset, @date) = @_;
+
+	$date[1] += $offset;
+	if ($date[1] < 1) {
+		$date[1] = 12;
+		$date[2] -= 1;
+	} elsif ($date[1] > 12) {
+		$date[1] = 1;
+		$date[2] += 1;
 	}
+
+	return (@date);
 }
 
 sub get_cal {
-	# Internal subroutine only.  Used by the Calendar widget.  Just gets
-	# the output of the Unix cal program for the desired month.
+	# Internal subroutine only.  Used by the Calendar widget.
+	# Generates its own 'cal' output.
 	#
-	# Usage:  get_cal(\@date_disp, \@cal_output);
+	# Modified from code provided courtesy of Michael E. Schechter,
+	# <mschechter@earthlink.net>
+	#
+	# Usage:  get_cal(@date_disp);
 
-	my ($command) = 'cal ' . ${ $_[0] }[1] . ' ' . ${ $_[0] }[2];
-	
-	open (INPT, "$command |");
-	@{ $_[1] } = <INPT>;
-	close (INPT);
+	my @date = @_;
+	my @cal;
+
+	local *print_month = sub {
+		my( $year, $month ) = @_;
+		my( @month ) = &make_month_array( $year, $month );
+		my( $title, $diff, $left, $day, $end, $x, $out ) = ();
+		my( @months ) = ( '', 'January', 'February', 'March', 'April', 'May',
+						  'June', 'July', 'August', 'September', 'October',
+						  'November', 'December' );
+		my $days = 'Su Mo Tu We Th Fr Sa';
+
+		$title = "$months[ $month ] $year";
+		$diff = 20 - length($title);
+		$left = $diff - int($diff / 2);
+		$title = ' ' x $left."$title";
+		$out = "$title\n$days";
+		$end = 0;
+		for( $x = 0; $x < scalar @month; $x++ ) {
+			if( $end == 0 ) { $out .= "\n"; }
+			$out .= "$month[ $x ]";
+			$end++;
+			if( $end > 6 ) {
+				$end = 0;
+			}
+		}
+		$out .= "\n";
+		return $out;
+	};
+
+	local *make_month_array = sub {
+		my( $year, $month ) = @_;
+		my( @month_array, $numdays, $remain, $x, $y ) = ();
+		my( $firstweekday ) = &day_of_week_num( $year, $month, 1 );
+		$numdays = &days_in_month( $year, $month );
+		$y = 1;
+		for( $x = 0; $x < $firstweekday; $x++ ) { $month_array[$x] = '   '; }
+		if( !(($year == 1752) && ($month == 9)) ) {
+			for( $x = 1; $x <= $numdays; $x++, $y++ ) { 
+				$month_array[$x + $firstweekday - 1] = sprintf( "%2d ", $y);
+			}
+		} else {
+			for( $x = 1; $x <= $numdays; $x++, $y++ ) { 
+				$month_array[$x + $firstweekday - 1] = sprintf( "%2d ", $y);
+				if( $y == 2 ) {
+					$y = 13;
+				}
+			}
+		}
+		return( @month_array );
+	};
+
+	local *day_of_week_num = sub {
+		my( $year, $month, $day ) = @_;
+		my( $a, $y, $m, $d ) = ();
+		$a = int( (14 - $month)/12 );
+		$y = $year - $a;
+		$m = $month + (12 * $a) - 2;
+		if( &is_julian( $year, $month ) ) {
+			$d = (5 + $day + $y + int($y/4) + int(31*$m/12)) % 7;
+		} else {
+			$d = ($day + $y + int($y/4) - int($y/100) + int($y/400) + 
+				int(31*$m/12)) % 7;
+		}
+		return( $d );
+	};
+
+	local *days_in_month = sub {
+		my( $year, $month ) = @_;
+		my( @month_days ) = ( 0,31,28,31,30,31,30,31,31,30,31,30,31 );
+		if( ($month == 2) && (&is_leap_year( $year )) ) {
+			$month_days[ 2 ] = 29;
+		} elsif ( ($year == 1752) && ($month == 9) ) {
+			$month_days[ 9 ] = 19;
+		}
+		return( $month_days[ $month ] );
+	};
+
+	local *is_julian = sub {
+		my( $year, $month ) = @_;
+		my( $bool ) = 0;
+		if( ($year < 1752) || ($year == 1752 && $month <= 9) ) {
+			$bool = 1;
+		}
+		return( $bool );
+	};
+
+	local *is_leap_year = sub {
+		my( $year ) = @_;
+		my( $bool ) = 0;
+		if( &is_julian( $year, 1 ) ) {
+			if( $year % 4 == 0 ) {
+				$bool = 1;
+			}
+		} else {
+			if( (($year % 4 == 0) && ($year % 100 != 0)) || 
+				($year % 400 == 0) ) {
+				$bool = 1;
+			}
+		}
+		return( $bool );
+	};
+
+	@cal = split(/\n/, print_month(@date[2,1]));
+	push(@cal, "\n") if (scalar @cal < 8);
+
+	return @cal;
 }
 
 sub calendar {
@@ -653,20 +830,30 @@ sub calendar {
 	# keys, performing immediate navigation and updates on special keys, 
 	# but exiting and returning other pressed keys as a function.
 	#
-	# Usage:  calendar( [name => value] );
+	# Usage:  calendar( [name => value], etc. );
 
 	my (%args) = (
 		'ypos'		=> 1,
 		'xpos'		=> 1,
 		'border' 	=> 'red',
 		'd_colour'	=> 'yellow',
+		'date_disp'	=> [],
 		@_
 	);
-	my ($cal_win) = ${ $args{'window'} }->derwin(10, 24, $args{'ypos'},
-		$args{'xpos'});
-	my ($i, $today, $y, $z, $input);
+	my ($i, $today, $y, $z, $input, $cwh, @cal);
 	my (@spec_keys) = (KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT,
 					   KEY_PPAGE, KEY_NPAGE, KEY_HOME);
+	my ($x2, $y2);
+
+	# Check to make sure the calendar won't exceed the window boundaries
+	$args{'window'}->getmaxyx($y2, $x2);
+	if ($args{'ypos'} < 0 || $args{'xpos'} < 0 ||
+		($args{'ypos'} + 24) > $y2 || ($args{'xpos'} + 10) > $x2) {
+		warn "Calendar widget's boundaries exceed the parent " .
+			"window's--not drawing.\n";
+		return;
+	}
+	$cwh = $args{'window'}->derwin(10, 24, $args{'ypos'}, $args{'xpos'});
 
 	# Get the initial calendar, if none is loaded yet
 	if (! ${ $args{'date_disp'} }[0]) {
@@ -674,15 +861,14 @@ sub calendar {
 		${ $args{'date_disp'} }[1] += 1;
 		${ $args{'date_disp'} }[2] += 1900;
 	}
-	if (@cal_output < 3) {
-		get_cal($args{'date_disp'}, \@cal_output);
-	}
+	@cal = get_cal(@{ $args{'date_disp'} });
+
 	# Declare local sub draw
 	local *draw = sub {
 		# Print the calendar
 		for ($i = 0; $i < 8; $i++) {
-			$cal_win->addstr($i + 1, 2, 
-				$cal_output[$i] . "\n");
+			$cwh->addstr($i + 1, 2, 
+				$cal[$i] . "\n");
 		}
 
 		# Highlight today's date, if in the current month and year
@@ -690,73 +876,263 @@ sub calendar {
 			((localtime)[5] + 1900) == ${ $args{'date_disp'} }[2]) {
 			$today = (localtime)[3];
 			for ($i = 2; $i < 8; $i++) {
-				if ($cal_output[$i] =~ /\b$today\b/) {
+				if ($cal[$i] =~ /\b$today\b/) {
 					$y = $i;
 					last;
 				}
 			}
-			for ($i = 0; $i < length($cal_output[$y]); $i++) {
-				if (substr($cal_output[$y], $i, length($today)) eq $today) {
+			for ($i = 0; $i < length($cal[$y]); $i++) {
+				if (substr($cal[$y], $i, length($today)) eq $today) {
 					$z = $i;
 					last;
 				}
 			}
-			$cal_win->attron(A_BOLD);
-			$cal_win->addstr($y + 1, $z + 2, $today);
-			$cal_win->attrset(0);
+			$cwh->attron(A_BOLD);
+			$cwh->addstr($y + 1, $z + 2, $today);
+			$cwh->attrset(0);
 		}
 	
 		# Draw the current displayed date in reverse video
 		for ($i = 2; $i < 8; $i++) {
-			if ($cal_output[$i] =~ 
+			if ($cal[$i] =~ 
 				/${ $args{'date_disp'} }[0]/) {
 				$y = $i;
 				last;
 			}
 		}
-		for ($i = 0; $i < length($cal_output[$y]); $i++) {
-			if (substr($cal_output[$y], $i, length(
+		for ($i = 0; $i < length($cal[$y]); $i++) {
+			if (substr($cal[$y], $i, length(
 				${ $args{'date_disp'} }[0])) eq ${ $args{'date_disp'} }[0]) {
 				$z = $i;
 				last;
 			}
 		}
-		$cal_win->attron(A_REVERSE);
-		$cal_win->addstr($y + 1, $z + 2, ${ $args{'date_disp'} }[0]);
-		$cal_win->attrset(0);
+		$cwh->attron(A_REVERSE);
+		$cwh->addstr($y + 1, $z + 2, ${ $args{'date_disp'} }[0]);
+		$cwh->attrset(0);
 
 		if (! $args{'draw_only'}) {
-			select_colour(\$cal_win, $args{'border'}) ||
-				$cal_win->attron(A_BOLD);
+			select_colour($cwh, $args{'border'}) ||
+				$cwh->attron(A_BOLD);
 		} else {
-			select_colour(\$cal_win, $args{'border'});
+			select_colour($cwh, $args{'border'});
 		}
-		$cal_win->box(ACS_VLINE, ACS_HLINE);
-		$cal_win->attrset(0);
-		$cal_win->refresh();
+		$cwh->box(ACS_VLINE, ACS_HLINE);
+		$cwh->attrset(0);
+		$cwh->refresh();
 	};
 
 	draw();
 	if (! exists $args{'draw_only'}) {
-		$cal_win->keypad(1);
-		while ($input = grab_key(\$cal_win, $args{'function'})) {
+		$cwh->keypad(1);
+		while ($input = grab_key($cwh, $args{'function'})) {
 			$z = 0;
 			foreach (@spec_keys) {
 				if ($_ eq $input) {
 					# Move the displayed date in the desired direction
-					set_day($input, $args{'date_disp'}, \@cal_output);
+					@{ $args{'date_disp'} } =
+						set_day($input, @{ $args{'date_disp'} });
+					@cal = get_cal(@{ $args{'date_disp'} });
 					draw();
 					$z = 1;
 					last;
 				}
 			}
 			if ($z == 0) {
+				$cwh->delwin();
 				return $input;
-				last;
 			}
 		}
 	}
-	$cal_win->delwin();
+	$cwh->delwin();
 }
 
+sub msg_box {
+	# Draws an message box with a single OK button on it.  The window is
+	# auto resizing, and auto-centering.  Once the OK button is activated, 
+	# it will destroy it's window before touching and refreshing the 
+	# calling window.
+	#
+	# Usage:  msg_box( [ 'title' => $title], etc. );
+
+	my %args = ( 'message' => '!', @_ );
+
+	my ($x1, $y1, $x2, $cols, $rows);
+	my (@line, $mbwh, $max, $ok);
+
+	# Get the console geometry and start plotting the msg_box dimensions
+	$cols = $COLS - 4;
+	$rows = $LINES - 3;
+
+	# Set the absolute minimum of any msg_box, and exit now if there's 
+	# not enough room.
+	if ($rows < 1 || $cols < 10) {
+		warn "Not enough room for the message box--not showing.\n";
+		return;
+	}
+
+	# Continue plotting dimensions
+	if (length($args{'message'}) > $cols) {
+		@line = line_split($args{'message'}, $cols);
+	} else {
+		push(@line, $args{'message'});
+	}
+	@line = @line[0..$rows] if (scalar @line > $rows);
+	$max = 0;
+	foreach (@line) { $max = length($_) if (length($_) > $max) };
+	$x1 = int(($cols - $max) / 2);
+	$y1 = int(($rows - scalar @line) / 2);
+	$x1 = 0 if ($x1 < 0);
+	$y1 = 0 if ($y1 < 0);
+
+	$mbwh = newwin(scalar @line + 3, $max + 4, $y1, $x1);
+
+	$x1 = 2;
+	$y1 = 1;
+	foreach (@line) {
+		$mbwh->addstr($y1, $x1, $_);
+		++$y1;
+	}
+	select_colour($mbwh, $args{'border'}) if (exists $args{'border'});
+	$mbwh->box(ACS_VLINE, ACS_HLINE);
+	$mbwh->attrset(0);
+	if (exists $args{'title'}) {
+		$args{'title'} = substr($args{'title'}, 0, $max + 2)
+			if (length($args{'title'}) > $max + 2);
+		$mbwh->standout();
+		$mbwh->addstr(0, 1, $args{'title'});
+		$mbwh->standend();
+	}
+	$mbwh->refresh();
+
+	$x1 = int(($max - 6) / 2);
+	$ok = '';
+	while ($ok !~ /[\n Oo]/) {
+		($ok, $x2) = buttons( 'window'	=> $mbwh,
+							  'buttons'	=> [ "< Ok >" ],
+							  'ypos'	=> $y1,
+							  'xpos'	=> $x1,
+							  'function'=> $args{'function'});
+	}
+
+	$mbwh->delwin;
+	if (exists $args{'window'}) {
+		$args{'window'}->touchwin;
+		$args{'window'}->refresh;
+	}
 }
+
+sub input_box {
+	# Draws an input box with OK/CANCEL buttons on it.  The window is
+	# auto resizing, and auto-centering.  Once a button is activated, 
+	# it will destroy it's window before touching and refreshing the 
+	# calling window.  This will return both the input field value
+	# and a 1 or a 0, depending on whether OK or CANCEL was pressed.
+	#
+	# Usage:  ($input, $button) = input_box( [ 'title' => $title], etc. );
+
+	my %args = ( 'prompt' => '!', @_ );
+
+	my ($x1, $y1, $x2, $cols, $rows);
+	my (@line, $ibwh, $max, $ok, $in, $key);
+
+	# Get the console geometry and start plotting the msg_box dimensions
+	$cols = $COLS - 4;
+	$rows = $LINES - 6;
+
+	# Set the absolute minimum of any msg_box, and exit now if there's 
+	# not enough room.
+	if ($rows < 1 || $cols < 20) {
+		warn "Not enough room for the input box--not showing.\n";
+		return;
+	}
+
+	# Continue plotting dimensions
+	if (length($args{'prompt'}) > $cols) {
+		@line = line_split($args{'prompt'}, $cols);
+	} else {
+		push(@line, $args{'prompt'});
+	}
+	@line = @line[0..$rows] if (scalar @line > $rows);
+	$max = 0;
+	foreach (@line) { $max = length($_) if (length($_) > $max) };
+	$max = 20 if ($max < 20);
+	$x1 = int(($cols - $max) / 2);
+	$y1 = int(($rows - scalar @line) / 2);
+	$x1 = 0 if ($x1 < 0);
+	$y1 = 0 if ($y1 < 0);
+
+	$ibwh = newwin(scalar @line + 6, $max + 4, $y1, $x1);
+
+	$x1 = 2;
+	$y1 = 1;
+	foreach (@line) {
+		$ibwh->addstr($y1, $x1, $_);
+		++$y1;
+	}
+	select_colour($ibwh, $args{'border'}) if (exists $args{'border'});
+	$ibwh->box(ACS_VLINE, ACS_HLINE);
+	$ibwh->attrset(0);
+	if (exists $args{'title'}) {
+		$args{'title'} = substr($args{'title'}, 0, $max + 2)
+			if (length($args{'title'}) > $max + 2);
+		$ibwh->standout();
+		$ibwh->addstr(0, 1, $args{'title'});
+		$ibwh->standend();
+	}
+	$ibwh->refresh();
+
+	$x1 = int(($max - 18) / 2) + 1;
+	$x2 = 0;
+	$ok = "\t";
+	while ($ok eq "\t") {
+		buttons( 'window'	=> $ibwh,
+				 'buttons'	=> [ "< Ok >", "< Cancel >" ],
+				 'ypos'	=> $y1 + 3,
+				 'xpos'	=> $x1,
+				 'active_button' => $x2,
+				 'draw_only' => 1);
+		($key, $in) = txt_field( 'window'	=> $ibwh,
+								 'ypos'		=> $y1,
+								 'xpos'		=> 2,
+								 'cols'		=> $max - 2,
+								 'border'	=> 'yellow',
+								 'function' => $args{'function'},
+								 'l_limit'	=> 1,
+								 'c_limit'	=> $max - 2,
+								 'regex'	=> "\t\n");
+		txt_field( 'window'		=> $ibwh,
+				   'ypos'		=> $y1,
+				   'xpos'		=> 2,
+				   'cols'		=> $max - 2,
+				   'content'	=> $in,
+				   'border'		=> $args{'border'},
+				   'draw_only'	=> 1);
+		if ($key eq "\n") {
+			$x2 = 1;
+			$ok = "\n";
+		} else {
+			($ok, $x2) = buttons( 'window'	=> $ibwh,
+								  'buttons'	=> [ "< Ok >", "< Cancel >" ],
+								  'ypos'	=> $y1 + 3,
+								  'xpos'	=> $x1,
+								  'active_button' => $x2,
+								  'function'=> $args{'function'});
+			if ($x2 == 0) {
+				$x2 = 1;
+			} elsif ($x2 == 1) {
+				$x2 = 0;
+			}
+		}
+	}
+
+	$ibwh->delwin;
+	if (exists $args{'window'}) {
+		$args{'window'}->touchwin;
+		$args{'window'}->refresh;
+	}
+
+	return ($in, $x2);
+}
+
+1;

@@ -2,8 +2,9 @@ Widgets.pm
 Widgets.pod
 Makefile.PL
 test.pl
-CHANGES
+CHANGELOG
 README
 TODO
 LICENSE
 MANIFEST
+CREDITS

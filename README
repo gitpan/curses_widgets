@@ -2,7 +2,7 @@ Curses::Widgets Module for Perl
 ==============================
 
 Author: Arthur Corliss
-Date:  June 17, 1999
+Date:  November 18, 1999
 
 Description:
 ------------
@@ -14,7 +14,6 @@ Requirements:
 
 --(n)Curses libraries
 --Curses module
---Unix 'cal' command (optional, for calendar widget support)
 
 Instructions:
 -------------

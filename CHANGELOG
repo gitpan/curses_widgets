@@ -1,32 +1,22 @@
-
-RCS file: RCS/Widgets.pm,v
-Working file: Widgets.pm
-head: 0.8
-branch:
-locks: strict
-	corliss: 0.8
-access list:
-symbolic names:
-keyword substitution: kv
-total revisions: 8;	selected revisions: 8
-description:
-Provides higher level access to self-contained widgets, all
-rendered with Curses.  Requires the Curses module.
-
-Currently provides:
-	--list_box:  provides a scrolling list box
-	--txt_field:  provides a text field
-	--calendar:  provides a navigable calendar
-	--buttons:  provides a vertical or horizontal button set
-	--init_colours:  initialises the colour portion of Curses,
-	  and set ups the primary colour pairs
-	--select_colour:  sets the colour mode for the appropriate
-	  window, by name
-	--line_count:  counts the number of lines, accounting for both
-	  line length and new lines.  Can also return a hash denoting #
-	  of characters by line, and an array of each line's content.
+--Added input_box and msg_box widgets.
 ----------------------------
-revision 0.8	locked by: corliss;
+revision 0.9	locked by: corliss;
+date: 1999/11/17 02:36:53;  author: corliss;  state: Exp;  lines: +563 -373
+--Generating 'cal' output internally, so the Unix cal is no longer needed.
+--Added export tags of :standard, :all, and :functions.
+--Allowing export of grab_key.
+--Added boundary checking for all widgets.
+--Button bar now is created in a derived window like the other widgets.
+--Fixed Text Field bugs that caused the script to crash.
+--Rewrote line_split *again*.
+--Added spacing parameter to the button bar.
+--select_colour now allocats colour pairs as needed.
+--Removed init_colours function (due to the expansion of select_colour).
+--All functions now just require the object handle, instead of a reference
+  to it.
+--Cleaned up various 'Uninitialised variables being used' errors.
+----------------------------
+revision 0.8
 date: 1999/06/17 23:39:01;  author: corliss;  state: Exp;  lines: +246 -214
 --Changed the name and rewrote line_split function.
 --Rewrote txt_field to work with line_split.

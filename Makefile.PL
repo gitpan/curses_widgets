@@ -4,6 +4,6 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
     'NAME'	=> 'Curses::Widgets',
-    'VERSION' => '0.8',
+    'VERSION' => '0.9',
 	'PREREQ_PM'	=> \%mods
 );

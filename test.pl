@@ -2,12 +2,12 @@
 #
 # Simple script that demonstrates the uses of Curses::Widgets
 #
-# $Id: test.pl,v 0.1 1999/06/17 23:06:15 corliss Exp $
+# $Id: test.pl,v 0.1 1999/06/17 23:06:15 corliss Exp corliss $
 #
 
 use strict;
 use Curses;
-use Curses::Widgets;
+use Curses::Widgets qw( :all );
 
 #####################################################################
 #
@@ -16,7 +16,6 @@ use Curses::Widgets;
 #####################################################################
 
 my ($mwh, $dwh);
-my ($colours);
 my ($text, $content);
 my (@date_disp);
 my (@buttons, $sel, %list);
@@ -32,14 +31,9 @@ my (@buttons, $sel, %list);
 # information on the functions.  Additional information is available
 # with the (n)Curses man pages (section 3), if you have them.
 $mwh = new Curses;
-$colours = has_colors();
 noecho();
-cbreak();
-halfdelay(10);
+halfdelay(5);
 $mwh->keypad(1);
-
-# This is just a function that maps some colour pairs:
-init_colours();
 
 main_win();
 
@@ -52,7 +46,7 @@ month.  Press any key to begin. . .
 __EOF__
 
 dialog($text, 'green');
-grab_key();
+grab_key($mwh, \&clock);
 
 $text = << '__EOF__';
 Use the cursor keys to navigate from day to day.  The Page Up &
@@ -68,11 +62,12 @@ dialog($text, 'red');
 # the current date by the calendar function, if not set already.
 # Since we're calling in the default 'interactive' mode, it will return a
 # key value.
-$text = calendar( 'window'		=> \$mwh,
+$text = calendar( 'window'		=> $mwh,
 				  'date_disp'	=> \@date_disp,
 				  'border'		=> 'green',
 				  'xpos'		=> 10,
-				  'ypos'		=> 9);
+				  'ypos'		=> 9,
+				  'function'	=> \&clock);
 
 $text = << "__EOF__";
 The last key you pushed was $text.  Remember, any key not used
@@ -84,14 +79,14 @@ __EOF__
 dialog($text, 'green');
 
 # This redraws the calender in non-interactive mode.
-calendar( 'window'		=> \$mwh,
+calendar( 'window'		=> $mwh,
 		  'date_disp'	=> \@date_disp,
 		  'border'		=> 'red',
 		  'xpos'		=> 10,
 		  'ypos'		=> 9,
 		  'draw_only'	=> 1);
 
-grab_key();
+grab_key($mwh, \&clock);
 
 main_win();
 
@@ -107,17 +102,18 @@ __EOF__
 dialog($text, 'red');
 
 # This calls the Text field in interactive, edit mode.
-($text, $content) = txt_field(   'window'		=> \$mwh,
+($text, $content) = txt_field( 'window'		=> $mwh,
 							   'title'		=> 'Test field',
 							   'xpos'		=> 1,
 							   'ypos'		=> 9,
 							   'lines'		=> 5,
 							   'cols'		=> $COLS - 4,
 							   'content'	=> 'Type something in here. . .',
-							   'border'		=> 'green');
+							   'border'		=> 'green',
+							   'function'	=> \&clock);
 
 # And, in non-interactive mode.
-txt_field(   'window'		=> \$mwh,
+txt_field(  'window'	=> $mwh,
 			'title'		=> 'Test field',
 			'xpos'		=> 1,
 			'ypos'		=> 9,
@@ -136,7 +132,7 @@ Press any key to continue.
 __EOF__
 
 dialog($text, 'green');
-grab_key();
+grab_key($mwh, \&clock);
 
 main_win();
 
@@ -153,11 +149,11 @@ dialog($text, 'red');
 $sel = 1;
 
 # Calls a horizontal button bar
-($text, $sel) = buttons( 'window'			=> \$mwh,
+($text, $sel) = buttons( 'window'			=> $mwh,
 						 'buttons'			=> \@buttons,
-						 'active_button'	=> $sel,
 						 'ypos'				=> 10,
-						 'xpos'				=> 10);
+						 'xpos'				=> 10,
+						 'function'			=> \&clock);
 
 $text = << '__EOF__';
 Called as a function, the button bar will return two values:
@@ -170,15 +166,16 @@ main_win();
 dialog($text, 'red');
 
 # Calls a vertical button bar
-($text, $sel) = buttons( 'window'			=> \$mwh,
+($text, $sel) = buttons( 'window'			=> $mwh,
 						 'buttons'			=> \@buttons,
 						 'active_button'	=> $sel,
 						 'ypos'				=> 10,
 						 'xpos'				=> 10,
-						 'vertical'			=> 1);
+						 'vertical'			=> 1,
+						 'function'			=> \&clock);
 
 $text = << '__EOF__';
-Lastly, we have the list box.  The Up & Down arrow
+Next, we have the list box.  The Up & Down arrow
 keys are used for navigation, while any other key
 will be returned, along with a selected item number,
 if there is one.
@@ -196,7 +193,7 @@ dialog($text, 'red');
 		  '8'	=> 'Last Choice');
 
 # List box in interactive mode.
-($text, $sel) = list_box( 'window'		=> \$mwh,
+($text, $sel) = list_box( 'window'		=> $mwh,
 						  'title'		=> 'Choose one',
 						  'ypos'		=> 9,
 						  'xpos'		=> 10,
@@ -204,10 +201,11 @@ dialog($text, 'red');
 						  'cols'		=> 25,
 						  'list'		=> \%list,
 						  'border'		=> 'green',
-						  'selected'	=> 1);
+						  'selected'	=> 1,
+						  'function'	=> \&clock);
 
 # Non-interactive mode.
-list_box( 'window'		=> \$mwh,
+list_box( 'window'		=> $mwh,
 		  'title'		=> 'Choose one',
 		  'ypos'		=> 9,
 		  'xpos'		=> 10,
@@ -225,8 +223,52 @@ selected was $list{$sel}.
 Press any key to continue.
 __EOF__
 
+main_win();
 dialog($text, 'green');
-grab_key();
+grab_key($mwh, \&clock);
+
+$text = << "__EOF__";
+The next widget you will see is the message box.
+This widget is for pop-up alerts, prebuilt with an
+'Ok' button, auto-centering, auto-sizing, and more.
+
+Press a key to see it.
+__EOF__
+
+dialog($text, 'green');
+grab_key($mwh, \&clock);
+
+msg_box( 'window'	=> $mwh,
+		 'message'	=> "And this is the Message Box!",
+		 'title'	=> "Test msg_box",
+		 'border'	=> "blue",
+		 'function'	=> \&clock);
+
+$text = << "__EOF__";
+Lastly, we have an input box, with all of the same 
+features as the msg_box.  Useful for one-line prompted
+input requests.
+
+Press a key to see it.
+__EOF__
+
+dialog($text, 'green');
+grab_key($mwh, \&clock);
+
+($content, $text) = input_box( 'window'	=> $mwh,
+							   'title'	=> "Test Input",
+							   'prompt'	=> "Input Password:",
+							   'border'	=> "blue",
+							   'function' => \&clock);
+
+$text = << "__EOF__";
+You entered "$content" and returned $text.
+
+Press a key to continue.
+__EOF__
+
+dialog($text, 'green');
+grab_key($mwh, \&clock);
 
 $text = << '__EOF__';
 That pretty much concludes this demonstration.  There will be
@@ -234,10 +276,11 @@ more features coming down the pike eventually, but hopefully
 this is more than adequate for most purposes.
 
 Any comments, grips, suggestions and critiques are welcome.
+Send them to Arthur Corliss <corliss@odinicfoundation.org>.
 __EOF__
 
 dialog($text, 'green');
-grab_key();
+grab_key($mwh, \&clock);
 
 $mwh->refresh();
 
@@ -255,23 +298,14 @@ sub main_win {
 	$mwh->erase();
 
 	# This function selects a few common colours for the foreground colour
-	select_colour(\$mwh, 'red');
+	select_colour($mwh, 'red');
 	$mwh->box(ACS_VLINE, ACS_HLINE);
 	$mwh->attrset(0);
 
 	$mwh->standout();
 	$mwh->addstr(0, 1, "Welcome to the Curses::Widgets Demo!");
 	$mwh->standend();
-}
-
-sub grab_key {
-	my ($key) = -1;
-
-	while ($key eq -1) {
-		$key = $mwh->getch();
-	}
-
-	return $key;
+	clock();
 }
 
 sub dialog {
@@ -288,10 +322,22 @@ sub dialog {
 		$dwh->addstr($i, 2, $line);
 	}
 
-	select_colour(\$dwh, $colour);
+	select_colour($dwh, $colour);
 	$dwh->box(ACS_VLINE, ACS_HLINE);
 	$dwh->attrset(0);
 
 	touchwin($mwh);
 	$mwh->refresh();
 }
+
+sub clock {
+	# Update the clock in the upper right hand corner of the screen
+	#
+	# Usage:  clock()
+
+	$mwh->standout();
+	$mwh->addstr(0, ($COLS - 26), scalar (localtime));
+	$mwh->standend();
+	$mwh->refresh();
+}
+
