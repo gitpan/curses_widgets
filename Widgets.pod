@@ -420,6 +420,18 @@ the message box will render.  Also note, though, that both the message and the
 title may get chomped down to alloted window space, if you pass it more than
 it can display.
 
+=head2 input_box
+
+The input_box displays a dialog box with a prompt, a one-line input field, 
+and a two buttons, B<OK> and B<CANCEL>.  Like the msg_box, this widget
+automatically scales and centers itself according to the prompt, and the
+'window' argument is optional.
+
+Unlike the msg_box, however, this widget returns two values; the first being
+the value of the text field, the second being a 1 if the B<OK> button was
+pressed, or a 0 if the B<CANCEL> button was pressed.  Hitting B<ENTER> while
+in the text field is a shortcut for pressing the B<OK> button.
+
 	Parameter	Commments
 	-----------------------------------
 	window		object handle to calling
@@ -440,18 +452,6 @@ available screen space.
 				       'title'		=> 'Password',
 				       'prompt'		=> 'Enter Password:',
 				       'border'		=> 'blue');
-
-=head2 input_box
-
-The input_box displays a dialog box with a prompt, a one-line input field, 
-and a two buttons, B<OK> and B<CANCEL>.  Like the msg_box, this widget
-automatically scales and centers itself according to the prompt, and the
-'window' argument is optional.
-
-Unlike the msg_box, however, this widget returns two values; the first being
-the value of the text field, the second being a 1 if the B<OK> button was
-pressed, or a 0 if the B<CANCEL> button was pressed.  Hitting B<ENTER> while
-in the text field is a shortcut for pressing the B<OK> button.
 
 =head1 FUNCTIONS
 
